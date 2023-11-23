@@ -41,6 +41,10 @@ CONFIG_SECTIONS :: Config_Section.[
         name = "linux",
         parse_function = "parse_linux_config_line",
     },
+    .{
+        name = "nso",
+        parse_function = "parse_nso_config_line",
+    }
 ];
 
 #add_context parse_for_highlighting: bool;
@@ -993,6 +997,28 @@ parse_linux_config_line :: (using parser: *Config_Parser, line: string) -> succe
     return true, "";
 }
 
+parse_nso_config_line :: (using parser: *Config_Parser, line: string) -> success: bool, error_msg: string {
+    name, value := break_by_spaces(line);
+    name = trim_right(name, ":");
+
+    val := value;
+    add_highlight(parser, 0, line.count, .default);
+
+    if name == {
+        case "nso_package_dir";
+            if value.count == 0 {
+                add_highlight(parser, value.data - line.data, value.count, .error);
+                return false, tprint("We got an empty string for `nso_package_dir`");
+            }
+
+            result.config.nso.nso_package_dir = val;
+
+        case;
+            return false, tprint("Unrecognized command `%`", name);
+    }
+    return true, "";
+}
+
 section_allows_lines_outside_subsection :: inline (section: Section) -> bool {
     // Right now it's enough to check that no subsections are defined.
     // That could change though, in which case we'll need a separate flag
@@ -1039,6 +1065,9 @@ Parsed_Config :: struct {
 
     // Platform-specific
     linux: Linux_Config;
+
+    // NSO
+    nso: Nso_Config;
 };
 
 Config_Parse_Result :: struct {

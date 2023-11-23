@@ -40,7 +40,127 @@ editors_handle_event :: (event: Input.Event) -> handled: bool {
     return false;
 }
 
+jump_to_nso_template :: (editor: Editor, buffer: Buffer) {
+    part_file_name := get_selected_string(editor.cursors[editor.main_cursor], buffer);
+    if part_file_name.count == 0  return;
 
+    search_path : string;
+    file_ending : string;
+    full_path : string;
+
+    nso_package_dir := copy_string(config.nso.nso_package_dir);
+
+    log_error("NSO directory in jump_to_nso_template is %", nso_package_dir);
+
+    if buffer.lang ==  {
+        case .Python;
+            // this jumps to wherever the current selected template-file is declared
+            search_path = "/templates";
+            file_ending = "xml";
+            full_path = sprint("%/%/%.%", nso_package_dir, search_path, part_file_name, file_ending);
+        case .Xml;
+            // this will jump to wherever {$VAR} is defined in python files and is a lot harder to find than what we do above :D
+        case;
+            return;
+    }
+
+    if full_path.count != 0 {
+        placement : Editor_Placement = .on_the_side;
+        editors_open_file(full_path, placement);
+    }
+}
+
+select_between_quotes :: (buffer: Buffer, cursor: *Cursor) {
+    pos       := cursor.pos;
+    pos_left  := ifx cursor.pos > 0 then prev_char_offset(buffer.bytes, pos) else 0;
+    char      := get_char_at_offset(buffer, pos);
+    char_left := get_char_at_offset(buffer, pos_left);
+
+    if !is_word_char(char) && is_word_char(char_left) {
+        pos  = pos_left;
+        char = char_left;
+    }
+
+    // This makes sense for my current usecase with NSO development, let's see about the future.
+    stop_on_newline_char := true;
+
+    cursor.pos = scan_to_specific_char_on_the_right(buffer, pos, #char "\"");
+    // TODO: I think I want to stop searching to the left, if we reach the start
+    //       of the line. Look up how we could do that.
+    cursor.sel = scan_to_specific_char_on_the_left (buffer, pos, #char "\"");
+}
+
+select_enclosed_content :: (buffer: Buffer, cursor: *Cursor) {
+    pos       := cursor.pos;
+    pos_left  := ifx cursor.pos > 0 then prev_char_offset(buffer.bytes, pos) else 0;
+    char      := get_char_at_offset(buffer, pos);
+    char_left := get_char_at_offset(buffer, pos_left);
+
+    if !is_word_char(char) && is_word_char(char_left) {
+        pos  = pos_left;
+        char = char_left;
+    }
+
+    // harcoding curly brackets for now as they are matching my usecase with Cisco NSO development and
+    // jumping to $VAR definitions from template to python files.
+    // TODO: handle other bracket types
+    //       jump from inner to outer on subsequent action invocations.
+    cursor.pos = scan_to_specific_char_on_the_right(buffer, pos, #char "}");
+    cursor.sel = scan_to_specific_char_on_the_left (buffer, pos, #char "{");
+}
+
+select_enclosed_content :: (editor: *Editor, buffer: Buffer) {
+    // For now I leave this copied over from select_word, but I am not entirely sure if I need this for select_between_quotes
+    editor.cursor_moved = .unimportant;
+    for * editor.cursors {
+        if has_selection(it) && editor.cursors.count > 1 continue;
+        select_enclosed_content(buffer, it);
+        editor.search_whole_words = true;
+    }
+}
+
+// We need some way to confirm, that we actually found the to_char character instead of searching endlessly to both sides and just returning the entire selection
+scan_to_specific_char_on_the_left :: (using buffer: Buffer, offset: s32, to_char: u32) -> offset: s32 {
+    if !buffer.bytes return 0;
+
+    line_start := bytes.data + line_starts[offset_to_real_line(buffer, offset)];
+    char: u32;
+
+    t:= bytes.data + offset;
+    t, char = unicode_prev_character(t);
+
+    if char == to_char return offset;
+
+    // while t > bytes.data && char != to_char && char != #char "\n" {
+    while t > bytes.data {
+        t, char = unicode_prev_character(t);
+        if char == to_char  {
+            t = unicode_next_character(t);
+            return cast(s32) max(0, t - bytes.data);
+        }
+    }
+
+    return cast(s32) max(0, t - bytes.data);
+}
+
+// We need some way to confirm, that we actually found the to_char character instead of searching endlessly to both sides and just returning the entire selection
+scan_to_specific_char_on_the_right :: (using buffer: Buffer, offset: s32, to_char: u32) -> offset: s32 {
+    if !buffer.bytes return 0;
+    if offset >= bytes.count return offset; // nowhere to go
+
+    s: string = ---;
+    s.data = *bytes[offset];
+    s.count = (bytes.data + bytes.count) - s.data;
+
+    char := utf8_next_character(*s);
+
+    //while s && char != to_char && char != #char "\n" {
+    while s && char != to_char {
+        char = utf8_next_character(*s);
+    }
+    s.data, char = unicode_prev_character(s.data);
+    return cast(s32) min(bytes.count, s.data - bytes.data);
+}
 
 activate_editors :: () {
     active_global_widget = .editors;
@@ -174,6 +294,8 @@ active_editor_handle_event :: (event: Input.Event, action: Action_Editors) -> ha
         case .select_word;                      select_word(editor, buffer); keep_selection = true;
         case .select_word_or_create_another_cursor; enabled_whole_words = select_word_or_create_another_cursor(editor, buffer); keep_selection = true;
         case .select_all_occurrences;               enabled_whole_words = select_all_occurrences              (editor, buffer); keep_selection = true;
+        case .select_between_quotes;            select_between_quotes(editor, buffer); keep_selection = true;
+        case .select_enclosed_content;          select_enclosed_content(editor, buffer); keep_selection = true;
 
         case .toggle_line_wrap;                 toggle_line_wrap                    (editor);
         case .toggle_line_numbers;              toggle_line_numbers                 ();
@@ -210,6 +332,8 @@ active_editor_handle_event :: (event: Input.Event, action: Action_Editors) -> ha
 
         case .select_line;                      select_lines                        (editor, buffer); keep_selection = true;
         case .copy;                             copy_selection_to_clipboard         (editor, buffer);
+
+        case .jump_to_nso_template;             jump_to_nso_template                (editor, buffer);
 
         case;                                   handled = false;
     }
@@ -1444,6 +1568,16 @@ select_word :: (editor: *Editor, buffer: Buffer) {
     for * editor.cursors {
         if has_selection(it) && editor.cursors.count > 1 continue;
         select_word(buffer, it);
+        editor.search_whole_words = true;
+    }
+}
+
+select_between_quotes :: (editor: *Editor, buffer: Buffer) {
+    // For now I leave this copied over from select_word, but I am not entirely sure if I need this for select_between_quotes
+    editor.cursor_moved = .unimportant;
+    for * editor.cursors {
+        if has_selection(it) && editor.cursors.count > 1 continue;
+        select_between_quotes(buffer, it);
         editor.search_whole_words = true;
     }
 }

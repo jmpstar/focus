@@ -153,6 +153,8 @@ commands := #run Command.[
     .{ .select_line,                                        "Select Line",                        0, .Single },
     .{ .select_all_occurrences,                             "Select All Occurrences",             0, .Single },
     .{ .swap_selections,                                    "Swap Selections",                    0, .Single },
+    .{ .select_between_quotes,                              "Select Between Quotes",              0, .Single },
+    .{ .select_enclosed_content,                            "Select Enclosed Content",            0, .Single },
 
     .{ .go_to_line,                                         "Go To Line",                         0, .Single },
 

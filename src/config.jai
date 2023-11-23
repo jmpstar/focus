@@ -328,6 +328,9 @@ merge_configs :: (dst: *Config, parsed: Parsed_Config) {
 
     // Platform config
     dst.linux = parsed.linux;
+
+    // NSO config
+    dst.nso = parsed.nso;
 }
 
 load_font_by_name :: (name: string) -> font_data: string, success: bool {
@@ -363,6 +366,7 @@ Config :: struct {
     colors:    Color_Values;
     build:     Build_Config;
     linux:     Linux_Config;
+    nso:       Nso_Config;
 }
 
 Loaded_Config :: struct {
@@ -378,6 +382,10 @@ Linux_Config :: struct {
     scaling_factor: float = 0.0;
     explorer_command: string;
     explorer_reveal_command: string;
+}
+
+Nso_Config :: struct {
+    nso_package_dir: string;
 }
 
 Workspace :: struct {
