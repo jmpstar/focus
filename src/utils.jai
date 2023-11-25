@@ -238,9 +238,16 @@ match_whole_word :: (s: string, offset: int, count: int) -> bool {
 }
 
 #add_context underscore_is_part_of_word := true;
+#add_context hyphen_is_part_of_word := false;
 
 is_word_char :: inline (ch: u32) -> bool {
-    return ifx ch == #char "_" then context.underscore_is_part_of_word else (!is_whitespace_char(ch) && !is_separator_char(ch));
+    if ch == #char "_" {
+        return context.underscore_is_part_of_word;
+    } else if {
+        return context.hyphen_is_part_of_word;
+    } else {
+        (!is_whitespace_char(ch) && !is_separator_char(ch));
+    }
 }
 
 is_non_word_char :: inline (ch: u32) -> bool {

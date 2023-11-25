@@ -174,7 +174,6 @@ refresh_git_branch_name :: () {
     if !editor return;
 
     file_dir := path_strip_filename(buffer.file.full_path);
-    defer(free(file_dir)); // Needed??
     result, output, error, timeout_reached := run_command("git", "rev-parse", "--abbrev-ref", "HEAD", working_directory = file_dir, capture_and_return_output = true, print_captured_output = true);
     buffer.file.vcs_branch_name = trim_right(output);
     buffer.file.vcs_versioned = true;
@@ -786,6 +785,13 @@ add_paste_animation :: (using editor: *Editor, range: Offset_Range) {
 }
 
 select_word :: (buffer: Buffer, cursor: *Cursor) {
+    // There are probably more functions that I want to adapt except this one.
+    if buffer.lang == .Yang || buffer.lang == .Xml {
+        context.hyphen_is_part_of_word = true;
+    } else {
+        context.hyphen_is_part_of_word = false;
+    }
+    
     pos       := cursor.pos;
     pos_left  := ifx cursor.pos > 0 then prev_char_offset(buffer.bytes, pos) else 0;
     char      := get_char_at_offset(buffer, pos);
