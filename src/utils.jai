@@ -243,10 +243,10 @@ match_whole_word :: (s: string, offset: int, count: int) -> bool {
 is_word_char :: inline (ch: u32) -> bool {
     if ch == #char "_" {
         return context.underscore_is_part_of_word;
-    } else if {
+    } else if ch == #char "-" {
         return context.hyphen_is_part_of_word;
     } else {
-        (!is_whitespace_char(ch) && !is_separator_char(ch));
+        return (!is_whitespace_char(ch) && !is_separator_char(ch));
     }
 }
 
