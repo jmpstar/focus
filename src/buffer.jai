@@ -16,7 +16,6 @@ refresh_open_buffers :: () {
         buffer.last_edit_time = frame_time;
 
         refresh_all_editors_for_buffer(editor.buffer_id);
-
         session_notify_modified_buffer(editor.buffer_id);
 
         // Maybe mark buffer as not modified if we've made it match the contents on disk

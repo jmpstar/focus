@@ -201,6 +201,8 @@ File_Info :: struct {
     path: string;
     icon: File_Icon;
     project_dir_id: s8 = 0;  // to be used for sorting
+    vcs_branch_name := "";
+    vcs_versioned := false; // Initialize first so we check on the first time when opening the file
 }
 
 File_Icon :: enum u16 {

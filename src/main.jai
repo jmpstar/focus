@@ -664,6 +664,7 @@ WHOLE_WORD_ICON     :: #run to_string(*convert_utf32_to_utf8(0xe4ba));
 REGEX_SEARCH_ICON   :: #run to_string(*convert_utf32_to_utf8(0xf621));
 BULLET_ICON         :: #run to_string(*convert_utf32_to_utf8(0x2022));
 XMARK_ICON          :: #run to_string(*convert_utf32_to_utf8(0xf057));
+CODE_BRANCH_ICON    :: #run to_string(*convert_utf32_to_utf8(0xf126));
 
 TAB_SIZE: s32 = 4;
 

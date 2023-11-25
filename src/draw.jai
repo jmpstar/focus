@@ -1367,6 +1367,9 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
         width   := 0.0;
         padding := floor(4 * dpi_scale);
 
+        line_col_width := 0.0;
+        code_branch_width := 0.0;
+
         pen := make_vector2(
             footer_rect.x,
             footer_rect.y + (footer_rect.h - font_ui.character_height) / 2 + 2 * dpi_scale,
@@ -1387,20 +1390,24 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
             if line_wrap_is_active(editor) then coords = get_real_cursor_coords(buffer, editor.cursors[main_cursor]).pos;
 
             #if DEBUG {
-                width = xx Simp.prepare_text(font_ui_bold, tprint("Offset: %  Line: %  Col: %", editor.cursors[main_cursor].pos, coords.line + 1, coords.col + 1));
+                line_col_width = xx Simp.prepare_text(font_ui_bold, tprint("Offset: %  Line: %  Col: %", editor.cursors[main_cursor].pos, coords.line + 1, coords.col + 1));
             } else {
-                width = xx Simp.prepare_text(font_ui_bold, tprint("Line: %  Col: %", coords.line + 1, coords.col + 1));
+                line_col_width = xx Simp.prepare_text(font_ui_bold, tprint("Line: %  Col: %", coords.line + 1, coords.col + 1));
             }
-            line_col_start_x := footer_rect.x + footer_rect.w - width;
+            line_col_start_x := footer_rect.x + footer_rect.w - line_col_width;
             Simp.draw_prepared_text(font_ui_bold, xx line_col_start_x, xx pen.y, color = Colors.UI_DIM);
 
-            // Make sure the text is cut nicely
-            fadeout_rect := cut_rect;
-            fadeout_rect.w = 4 * padding;
-            trans := footer_color;
-            trans.a = 0;
-            Simp.set_shader_for_color(enable_blend = true);
-            draw_rect_raw(fadeout_rect, c00 = footer_color, c10 = trans, c01 = footer_color, c11 = trans);
+            if buffer.file.vcs_branch_name != "" {
+                // Draw code_branch name
+                code_branch_width = xx Simp.prepare_text(font_ui_bold, buffer.file.vcs_branch_name);
+                git_start_x := footer_rect.x + footer_rect.w - line_col_width - code_branch_width - 6*padding;
+                Simp.draw_prepared_text(font_ui_bold, xx git_start_x, xx pen.y, color = Colors.UI_DIM);
+
+                // Draw code_branch icon
+                icon_width := Simp.prepare_text(font_icons, to_string(CODE_BRANCH_ICON));
+                icon_x := git_start_x - font_icons.em_width * 1.2;
+                Simp.draw_prepared_text(font_icons, xx icon_x, xx pen.y, color = Colors.UI_DIM);
+            }
         }
     }
 

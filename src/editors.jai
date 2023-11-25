@@ -164,7 +164,20 @@ scan_to_specific_char_on_the_right :: (using buffer: Buffer, offset: s32, to_cha
 
 activate_editors :: () {
     active_global_widget = .editors;
+    refresh_git_branch_name();
     cursors_start_blinking();
+}
+
+// Not sure this is great here.
+refresh_git_branch_name :: () {
+    editor, buffer := get_active_editor_and_buffer();
+    if !editor return;
+
+    file_dir := path_strip_filename(buffer.file.full_path);
+    defer(free(file_dir)); // Needed??
+    result, output, error, timeout_reached := run_command("git", "rev-parse", "--abbrev-ref", "HEAD", working_directory = file_dir, capture_and_return_output = true, print_captured_output = true);
+    buffer.file.vcs_branch_name = trim_right(output);
+    buffer.file.vcs_versioned = true;
 }
 
 editors_handle_file_drop :: (files: [] string) {
