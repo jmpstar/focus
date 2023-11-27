@@ -73,7 +73,7 @@ get_workspace_scan_progress :: () -> float {
     return clamp(cast(float) num_jobs_completed / num_jobs_to_complete, 0.0, 1.0);
 }
 
-maybe_update_workspace_buffers :: () {
+workspace_update :: () {
     if !workspace_scan_complete {
         if !file_list_ready {
             results := get_completed_work(*file_list_thread_group);
@@ -196,6 +196,7 @@ hard_reload_workspace :: () {
     if scanner_thread_group.initted   then shutdown(*scanner_thread_group);
 
     deinit_finder();
+    deinit_build_system();
     deinit_open_file_dialog();
     deinit_file_watcher();
 
@@ -210,6 +211,7 @@ hard_reload_workspace :: () {
     array_reset_keeping_memory(*project_dirs);
     init_workspace();
     init_buffers();
+    init_build_system();
     update_window_title();
     reopen_visible_editors(old_editor_state);
     start_initial_workspace_scan();

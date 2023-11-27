@@ -2,6 +2,7 @@ CURRENT_CONFIG_VERSION :: 2;
 
 load_global_config :: (fallback_to_default_on_failure := false) -> success: bool, changed: bool, there_were_warnings: bool {
     config_path := tprint("%/global.focus-config", config_dir);
+    if !global_config.path then global_config.path = copy_string(config_path);
 
     if !file_exists(config_path) {
         // Create one with default contents
@@ -9,19 +10,20 @@ load_global_config :: (fallback_to_default_on_failure := false) -> success: bool
         if !success panic_messagebox("Couldn't create a new config file '%'.\nIs the directory writable?", config_path);
     }
 
-    loaded_config := load_config(config_path);
-    if !loaded_config.loaded && fallback_to_default_on_failure then config = DEFAULT_CONFIG;
+    loaded_config, changed := load_config(config_path, *global_config);
+    if !changed return true, false, false;
+
     if loaded_config.loaded {
         // Merge into an empty config
         config = Config.{};
         merge_configs(*config, loaded_config.parsed_config);
         apply_config();
-
-        changed := loaded_config.hash != global_config.hash;
         free_loaded_config(*global_config);
         global_config = loaded_config;
-        return true, changed, loaded_config.there_were_warnings;
+        return true, true, loaded_config.there_were_warnings;
     } else {
+        if fallback_to_default_on_failure then config = DEFAULT_CONFIG;
+        global_config.hash = loaded_config.hash;
         free_loaded_config(*loaded_config);
         return false, false, false;
     }
@@ -35,7 +37,9 @@ load_project_config :: (project: string = "") -> success: bool, changed: bool, t
     project_name := ifx project then project else current_project_name;
     config_path  := tprint("%/%.focus-config", projects_dir, project_name);
 
-    loaded_config := load_config(config_path);
+    loaded_config, changed := load_config(config_path, *project_config);
+    if !changed return true, false, false;
+
     if loaded_config.loaded {
         // Merge into an empty config, starting from a loaded global config
         if global_config.loaded {
@@ -56,6 +60,7 @@ load_project_config :: (project: string = "") -> success: bool, changed: bool, t
 
         return true, changed, loaded_config.there_were_warnings;
     } else {
+        project_config.hash = loaded_config.hash;
         free_loaded_config(*loaded_config);
         return false, false, false;
     }
@@ -107,7 +112,7 @@ free_loaded_config :: (loaded_config: *Loaded_Config) {
 }
 
 refresh_config :: (path: string) {
-    // Deep copy old workspace dirs (they will be freed by the load config function otherwise
+    // Deep copy old workspace dirs (they will be freed by the load config function otherwise)
     old_workspace_dirs: [..] string;
     old_workspace_dirs.allocator = temp;
     for config.workspace.workspace_dirs array_add(*old_workspace_dirs, copy_temporary_string(it));
@@ -225,7 +230,7 @@ find_font_by_name :: (name: string) -> path: string, error_msg: string /* temp *
 
 #scope_file
 
-load_config :: (file_path: string) -> Loaded_Config {
+load_config :: (file_path: string, existing: *Loaded_Config) -> Loaded_Config, changed := true {
     loaded_config: Loaded_Config;
 
     file_data, success_read := read_entire_file(file_path);
@@ -239,11 +244,12 @@ load_config :: (file_path: string) -> Loaded_Config {
     loaded_config.path = copy_string(file_path);
     loaded_config.file_data = file_data;
     loaded_config.hash = calculate_hash(to_bytes(file_data));
+    if loaded_config.hash == existing.hash return loaded_config, false;  // unchanged so no need to parse
 
     parse_result := parse_config(file_path, file_path, file_data);
     if !parse_result.success {
         if !parse_result.error_msg assert(false, "No error message on a config error. This is a bug.");
-        add_user_error(parse_result.error_msg);
+        add_user_error(parse_result.error_msg, tag = .config);
         return loaded_config;
     }
     if parse_result.warnings {
@@ -448,27 +454,29 @@ Style :: struct {
 }
 
 Build_Config :: struct {
-    defaults: Command;
+    defaults: Build_Command;
     defaults.name = "Default Build Command";
-    commands: [..] Command;
+    commands: [..] Build_Command;
     keymap: [..] Key_Mapping;  // separate from the other keymaps because it should never merge with the previous config
                                // (because the build commands don't merge so we can't use the previous config's keymaps)
+}
 
-    Command :: struct {
-        name:                   string;  @dontparse
+Build_Command :: struct {
+    name:                   string;  @dontparse
 
-        build_command:          string;
-        build_working_dir:      string;
+    build_command:          string;
+    build_working_dir:      string;
 
-        run_command:            string;
-        run_working_dir:        string;
+    run_command:            string;
+    run_working_dir:        string;
 
-        error_regex:            string;
-        auto_jump_to_error:     bool;
+    error_regex:            string;
+    auto_jump_to_error:     bool;
 
-        open_panel_on_build:    bool;
-        close_panel_on_success: bool;
-    }
+    open_panel_on_build:    bool;
+    close_panel_on_success: bool;
+
+    timeout_in_seconds:     int;
 }
 
 style: Style;

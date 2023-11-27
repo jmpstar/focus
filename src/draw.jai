@@ -289,21 +289,22 @@ draw_user_messages :: (main_area: Rect, footer_height: float) {
 }
 
 draw_build_panel :: () {
-
-    left_rect, right_rect := cut_left(screen, screen.w * splitter_pos, margin = 2);
+    splitter := ifx !editor_closing then splitter_pos else 0.5;
+    left_rect, right_rect := cut_left(screen, screen.w * splitter, margin = 2);
 
     build_panel_rect: Rect;
     if #complete editors.layout == {
         case .None;     build_panel_rect = right_rect;
         case .Single;   build_panel_rect = right_rect;
         case .Double;   build_panel_rect = ifx editors.active == editors.left then right_rect else left_rect;
+                        if editor_closing then build_panel_rect = right_rect;
     }
-    build_panel_rect = shrink(build_panel_rect, 4 * char_size);
-    build_panel_rect.y += 4 * char_size;
+    build_panel_rect = shrink_y(build_panel_rect, 5 * char_size);
+    build_panel_rect.y += 5 * char_size;
     if !is_valid(build_panel_rect) return;
 
     editor_id := build_panel_get_editor_id();
-    draw_rounded_rect_with_shadow(build_panel_rect, Colors.BACKGROUND_BUILD_PANEL, radius = 0.1, shadow_size = char_size);
+    draw_rounded_rect_with_shadow(build_panel_rect, Colors.BUILD_PANEL_BACKGROUND, radius = 0.1, shadow_size = char_size);
 
     ui_id := get_ui_id_from_loc();
     draw_editor(editor_id, build_panel_rect, 0, ui_id, as_build_panel = true);
@@ -466,9 +467,10 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
 
         editor.refresh_highlights = true;
 
-        // Activate editor
-        make_editor_active(editor_id);
-        if mouse.left.just_pressed then redraw_requested = true;  // so that we don't draw 2 active editors
+        if mouse.left.just_pressed {
+            make_editor_active(editor_id);
+            redraw_requested = true;  // so that we don't draw 2 active editors
+        }
 
     } else if ui.active == ui_id && (mouse.middle.just_pressed || mouse.middle.is_dragging) {
         mouse_coords := coords_from_mouse_position();
@@ -574,7 +576,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
         // Handle editor scrolling here because we only know the layout at this point.
         num_editor_lines := get_max_line_num(editor, buffer);
         content_height := (num_editor_lines + 2) * line_height;
-        if config.settings.scroll_beyond_last_line then content_height += (rect.h - 3 * line_height);
+        if config.settings.scroll_beyond_last_line && !as_build_panel then content_height += (rect.h - 3 * line_height);
 
         max_y_scroll := max(cast(s32)(content_height - rect.h), 0);
 
@@ -688,7 +690,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
         }
 
         // Scrollbar
-        new_scroll_target := draw_scrollbar(rect, scrollbar_size, content_height, viewport.top, viewport.scroll_y.target, max_y_scroll, scrollbar_id);
+        new_scroll_target := draw_scrollbar(rect, scrollbar_size, content_height, viewport.top, viewport.scroll_y.target, max_y_scroll, scrollbar_id, as_build_panel);
         if new_scroll_target != viewport.scroll_y.target {
             // Jump immediately to the scroll point when dragging or clicking scrollbar
             viewport.top = new_scroll_target;
@@ -994,7 +996,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
         Simp.draw_code(font, xx pen.x, xx pen.y, char_x_advance, line_height, code_lines, CODE_COLOR_MAP, TAB_SIZE, hidden_chars_on_the_left);
 
         // Draw continuation markers for wrapped lines
-        if line_wrap_is_active(editor) && !config.settings.show_line_numbers {
+        if line_wrap_is_active(editor) && !config.settings.show_line_numbers && !as_build_panel {
             Simp.set_shader_for_rects();
 
             radius   := char_x_advance / 4;
@@ -3098,7 +3100,7 @@ get_new_scroll_target_from_scrollbar :: (main_rect: Rect, width: float, content_
     return draw_scrollbar(main_rect, width, content_height, scroll, scroll_target, max_scroll, ui_id, draw = false);
 }
 
-draw_scrollbar :: (main_rect: Rect, width: float, content_height: float, scroll: s32, scroll_target: s32, max_scroll: s32, ui_id: Ui_Id, $draw := true) -> new_scroll_target: s32 {
+draw_scrollbar :: (main_rect: Rect, width: float, content_height: float, scroll: s32, scroll_target: s32, max_scroll: s32, ui_id: Ui_Id, for_build_panel := false, $draw := true) -> new_scroll_target: s32 {
     if max_scroll <= 0 return scroll_target;
 
     area := cut_right(main_rect, width);  // the scrollbar area of the main rect
@@ -3110,15 +3112,24 @@ draw_scrollbar :: (main_rect: Rect, width: float, content_height: float, scroll:
 
     maybe_set_hot_or_active(ui_id, area, .NORMAL);
 
-    // Draw
-    color := Colors.SCROLLBAR;
+    color       := Colors.SCROLLBAR;
+    color_bg    := Colors.SCROLLBAR_BACKGROUND;
+    color_hover := Colors.SCROLLBAR_HOVER;
 
+    // This is not very nice, but we're just going to do it like this for now and move on
+    if for_build_panel {
+        color       = Colors.BUILD_PANEL_SCROLLBAR;
+        color_bg    = Colors.BUILD_PANEL_SCROLLBAR_BACKGROUND;
+        color_hover = Colors.BUILD_PANEL_SCROLLBAR_HOVER;
+    }
+
+    // Draw
     if is_hovering_over(ui_id) {
-        #if draw draw_rounded_rect(area, Colors.SCROLLBAR_BACKGROUND, radius = rounding_radius_small);
-        color = Colors.SCROLLBAR_HOVER;
+        #if draw draw_rounded_rect(area, color_bg, radius = rounding_radius_small);
+        color = color_hover;
     }
     separator_rect := shrink_y(cut_left(area, 1), rounding_radius_small);
-    #if draw draw_rect(separator_rect, Colors.SCROLLBAR_BACKGROUND);
+    #if draw draw_rect(separator_rect, color_bg);
     scrollbar.y += (cast(float) (max_scroll - scroll) / max_scroll) * scroll_zone_size;
     scrollbar.y = floor(scrollbar.y);
     scrollbar = shrink(scrollbar, 1);

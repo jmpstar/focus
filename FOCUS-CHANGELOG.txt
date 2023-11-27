@@ -49,16 +49,7 @@
         + Yang (thanks @jmpstar)
     + Numpad keys can now be used in key mappings.
       The editor now recognizes the following new key names:
-        Numpad0
-        Numpad1
-        Numpad2
-        Numpad3
-        Numpad4
-        Numpad5
-        Numpad6
-        Numpad7
-        Numpad8
-        Numpad9
+        Numpad0 - Numpad9
         NumpadMultiply
         NumpadDivide
         NumpadAdd
@@ -90,6 +81,7 @@
     + Limited Windows 7 support (no dpi awareness)
     + Better word detection by commands that move cursors by word
     + Config highlighting has become smarter and hopefully more helpful
+    + Improved CPU usage when selecting text by mouse
 
 
 
