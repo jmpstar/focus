@@ -346,6 +346,7 @@ ACTIONS_EDITORS :: #run arrays_concat(ACTIONS_COMMON, string.[
     "delete_current_file",
     "toggle_comment",
     "toggle_block_comment",
+    "jump_to_matching_bracket",
     "select_line",
     "scroll_viewport_up",
     "scroll_viewport_up_fast",
