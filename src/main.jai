@@ -5,7 +5,9 @@ main :: () {
 
         // OA :: #import "Overwriting_Allocator";
         // context.allocator = OA.get_overwriting_allocator();
+
     }
+    focus_allocator = context.allocator;  // to be used as a default allocator where we need it
 
     cpu_info = get_cpu_info();
 
@@ -351,7 +353,6 @@ handle_common_editor_action :: (action: Action_Editors, placement: Editor_Placem
         case .move_to_next_buffer;                              move_to_next_editor_history    (by_buffer = true);  return true;
 
         case .toggle_build_panel;                               toggle_build_panel();                               return true;
-        case .toggle_build_panel_height;                        toggle_build_panel_height();                        return true;
 
         // TODO: search_in_buffer
         case .search_in_project;
@@ -432,7 +433,7 @@ init_fonts_and_dependent_things :: () {
 
     common_icons: String_Builder;
     common_icons.allocator = temp;
-    for enum_values_as_enum(File_Icon) {
+    for enum_values_as_enum(Icon) {
         char := convert_utf32_to_utf8(xx it);
         append(*common_icons, to_string(*char));
     }
@@ -749,6 +750,8 @@ Project_Dir :: struct {
 just_dropped_file := "";
 
 cpu_info: Cpu_X86;
+
+focus_allocator: Allocator;
 
 // This will be set to `true` in `refresh_config()` to signal that the
 // next window resize event should be handled even if the window doesn't actually

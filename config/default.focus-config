@@ -66,6 +66,11 @@ auto_surround_with_brackets_and_quotes: false
 auto_close_brackets:                    false
 prefer_system_file_dialogs:             false  # Windows only
 
+build_panel_stays_in_one_place:         false  # if true, the build panel will flip to the inactive pane in two pane layouts
+build_panel_line_wrap_always_on:        true
+build_panel_width_percent:              50
+build_panel_height_percent:             50
+
 
 [[keymap]]
 
@@ -133,7 +138,6 @@ Alt-V                       move_cursor_to_viewport_center
 {Shift}-Ctrl-ArrowUp        move_up_to_empty_line
 {Shift}-Ctrl-ArrowDown      move_down_to_empty_line
 
-Escape                      remove_additional_cursors
 Alt-Shift-I                 add_cursors_to_line_ends
 Alt-Shift-Ctrl-I            add_cursors_to_line_starts
 
@@ -166,8 +170,6 @@ Alt-Shift-L                 toggle_line_numbers
 
 [open file dialog]
 
-Escape                      close_dialog
-
 Enter                       open_entry_in_place
 Ctrl-Enter                  open_entry_on_the_side
 Ctrl-1                      open_entry_on_the_left
@@ -180,8 +182,6 @@ Backspace                   pop_directory
 
 
 [search dialog]
-
-Escape                      close_dialog
 
 Enter                       open_entry_in_place
 Ctrl-Enter                  open_entry_on_the_side
@@ -227,6 +227,8 @@ Ctrl-A                      select_all
 
 Ctrl-W                      close_current_editor
 Ctrl-Shift-W                close_other_editor
+
+Escape                      escape  # combines close_dialog and remove_additional_cursors
 
 Ctrl-Shift-L                toggle_expand
 
@@ -323,8 +325,8 @@ code_keyword:                           E67D74FF
 region_scope_export:                    15212AFF
 region_scope_file:                      131C22FF
 region_scope_module:                    1A2831FF
-region_header:                          30394F4C
-region_success:                         227722FF
+region_header:                          1A5152FF
+region_success:                         226022FF
 region_warning:                         986032FF
 region_error:                           772222FF
 
@@ -332,3 +334,4 @@ build_panel_background:                 1A2831FF
 build_panel_scrollbar:                  33CCCC19
 build_panel_scrollbar_hover:            33CCCC4C
 build_panel_scrollbar_background:       10191F4C
+build_panel_title_bar:                  1C303AFF

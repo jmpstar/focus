@@ -75,7 +75,7 @@ apply_config :: () {
     // Make sure the values are within the acceptable range
     old_tab_size := TAB_SIZE;
     TAB_SIZE = clamp(cast(s32) config.settings.tab_size, 1, 100);  // be reasonable mkay (though even 100 is unreasonable)
-    if config.settings.tab_size != TAB_SIZE then add_user_warning(tprint("Tab size clamped to %", TAB_SIZE));
+    if config.settings.tab_size != TAB_SIZE then add_user_warning("Tab size clamped to %", TAB_SIZE);
 
     if old_tab_size != TAB_SIZE {
         // Refresh all editors which have line wrap on
@@ -85,17 +85,24 @@ apply_config :: () {
         }
     }
 
-    line_height_scale := config.settings.line_height_scale_percent;
-    config.settings.line_height_scale_percent = clamp(line_height_scale, 50, 1000);
-    if config.settings.line_height_scale_percent != line_height_scale {
-        add_user_warning(tprint("Line height scale clamped to %", config.settings.line_height_scale_percent));
+    clamp_and_warn :: (setting: *$T, min: T, max: T, message: string) {
+        old := setting.*;
+        clamped := clamp(old, min, max);
+        if clamped != old {
+            add_user_warning(message, clamped);
+            setting.* = clamped;
+        }
     }
 
-    editor_history_size := config.settings.editor_history_size;
-    config.settings.editor_history_size = clamp(editor_history_size, 4, 1024 * 1024);
-    if config.settings.editor_history_size != editor_history_size {
-        add_user_warning(tprint("Editor history size clamped to %", config.settings.editor_history_size));
-    }
+    clamp_and_warn(*config.settings.line_height_scale_percent,  50,  1000,        "Line height scale clamped to % percent");
+    clamp_and_warn(*config.settings.editor_history_size,        4,   1024 * 1024, "Editor history size clamped to %");
+    clamp_and_warn(*config.settings.build_panel_height_percent, 10,  100,         "Build panel height clamped to % percent");
+    clamp_and_warn(*config.settings.build_panel_width_percent,  10,  100,         "Build panel width clamped to % percent");
+
+    build_panel_width  = config.settings.build_panel_width_percent  / 100.0;
+    build_panel_height = config.settings.build_panel_height_percent / 100.0;
+    build_panel_height_anim.target = build_panel_height;
+    build_panel_set_line_wrap(config.settings.build_panel_line_wrap_always_on);
 
     // Must do after the validation
     init_fonts_and_dependent_things();
@@ -126,14 +133,14 @@ refresh_config :: (path: string) {
         if project_config.loaded {
             success, changed, there_were_warnings = load_project_config(current_project_name);
             if success && changed && !there_were_warnings {
-                add_success_message(tprint("Config changes for project '%' have been applied", current_project_name), dismiss_in_seconds = 3, tag = .config);
+                add_success_message("Config changes for project '%' have been applied", current_project_name, dismiss_in_seconds = 3, tag = .config);
             }
         }
     } else if platform_path_equals(path, project_config.path) {
         success, changed, there_were_warnings := load_project_config();
         if success && changed && !there_were_warnings {
             clear_user_messages(.config);
-            add_success_message(tprint("Config changes for project '%' have been applied", current_project_name), dismiss_in_seconds = 3, tag = .config);
+            add_success_message("Config changes for project '%' have been applied", current_project_name, dismiss_in_seconds = 3, tag = .config);
         }
     } else {
         log_error("Attempted to refresh config from file %, but it is not a global config or a current project config", path);
@@ -313,7 +320,7 @@ merge_configs :: (dst: *Config, parsed: Parsed_Config) {
             main_font_name = parsed.font;
         } else {
             // NOTE: this error will be removed by the config success message. Should do something about it
-            add_user_error(tprint("Couldn't load font %", parsed.font));
+            add_user_error("Couldn't load font %", parsed.font);
         }
     }
     if parsed.font_size > 0 {
@@ -434,6 +441,11 @@ Settings :: struct {
     auto_close_brackets                     := false;
     prefer_system_file_dialogs              := false;
 
+    build_panel_width_percent               := 50;
+    build_panel_height_percent              := 50;
+    build_panel_stays_in_one_place          := false;
+    build_panel_line_wrap_always_on         := true;
+
     // TODO
     // convert_tabs_to_spaces_on_load:     false
     // load_last_session_on_start:         true
@@ -476,7 +488,7 @@ Build_Command :: struct {
     open_panel_on_build:    bool;
     close_panel_on_success: bool;
 
-    timeout_in_seconds:     int;
+    timeout_in_seconds:     int = -1;
 }
 
 style: Style;

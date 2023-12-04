@@ -11,7 +11,16 @@ editors_handle_event :: (event: Input.Event) -> handled: bool {
         case .KEYBOARD;
             if event.key_pressed {
                 action, mapping := map_event_to_action(event, Action_Editors);
-                return active_editor_handle_event(event, action);
+                editor, buffer := get_active_editor_and_buffer();
+                if editor {
+                    return active_editor_handle_event(editor, buffer, event, action);
+                } else {
+                    if action == {
+                        case .escape;           #through;
+                        case .close_dialog;     hide_build_panel();     return true;
+                    }
+                    return false;
+                }
             } else {
                 hold_actions_to_be_stopped := map_key_release_to_hold_actions(event, Action_Editors);
                 for hold_actions_to_be_stopped {
@@ -199,10 +208,7 @@ editors_handle_file_drop :: (files: [] string) {
     }
 }
 
-active_editor_handle_event :: (event: Input.Event, action: Action_Editors) -> handled: bool {
-    editor, buffer := get_active_editor_and_buffer();
-    if !editor return false;
-
+active_editor_handle_event :: (editor: *Editor, buffer: *Buffer, event: Input.Event, action: Action_Editors) -> handled: bool {
     shift_pressed := event.modifier_flags.shift_pressed;
     ctrl_pressed  := event.modifier_flags.ctrl_pressed;
 
@@ -239,11 +245,13 @@ active_editor_handle_event :: (event: Input.Event, action: Action_Editors) -> ha
 
         if mode == .classic {
             if action == {
+                case .escape;                       #through;
                 case .close_dialog;                 close_search_bar(editor);                                       return true;
                 case .open_entry_in_place;          search_bar_move_cursor(editor, buffer,  1, wrap = true);        return true;
             }
         } else {
             if action == {
+                case .escape;                       #through;
                 case .close_dialog;                 close_search_bar(editor, jump_to_original_cursor = true);       return true;
 
                 case .move_up_one_page;             search_bar_move_cursor(editor, buffer, -per_page);              return true;
@@ -276,13 +284,16 @@ active_editor_handle_event :: (event: Input.Event, action: Action_Editors) -> ha
 
     if action == {
         // General actions (which are not associated with any cursor)
-        case .toggle_expand;                    toggle_expand(!editors.expanded);
+        case .toggle_expand;                    toggle_expand();
         case .search_in_buffer;                 open_search_bar(editor, buffer);
         case .search_in_buffer_dropdown_mode;   open_search_bar(editor, buffer, .dropdown);
         case .close_current_editor;             close_editor(.current);
         case .close_other_editor;               close_editor(.other);
         case .close_left_editor;                close_editor(.left);
         case .close_right_editor;               close_editor(.right);
+
+        case .close_dialog;                     hide_build_panel();
+        case .escape;                           hide_build_panel(); remove_additional_cursors(editor);
 
         case .save;                             save    (editor.buffer_id);
         case .save_as;                          save_as (editor.buffer_id);
@@ -352,7 +363,9 @@ active_editor_handle_event :: (event: Input.Event, action: Action_Editors) -> ha
         case;                                   handled = false;
     }
 
-    if !handled && !buffer.readonly {
+    if !handled {
+        if buffer.readonly return false;
+
         if action == {
             case .indent_or_go_to_next_tabstop;     indent_or_tab                       (editor, buffer); keep_selection = true;
             case .indent;                           indent_lines                        (editor, buffer); keep_selection = true;
@@ -551,7 +564,7 @@ editors_open_file :: (path: string, placement: Editor_Placement = .in_place) {
     path_overwrite_separators(full_path, separator = #char "/");
     if !file_exists(full_path) || !success {
         log_error("Couldn't open file %", path);
-        add_user_error(tprint("Couldn't open file %", path), dismiss_in_seconds = 60);
+        add_user_error("Couldn't open file %", path, dismiss_in_seconds = 60);
         return;
     }
     buffer_id := find_or_create_buffer(full_path);
@@ -793,7 +806,7 @@ select_word :: (buffer: Buffer, cursor: *Cursor) {
     } else {
         context.hyphen_is_part_of_word = false;
     }
-    
+
     pos       := cursor.pos;
     pos_left  := ifx cursor.pos > 0 then prev_char_offset(buffer.bytes, pos) else 0;
     char      := get_char_at_offset(buffer, pos);
@@ -1416,7 +1429,8 @@ update_window_title :: (buffer_id: s64 = -1) {
         if buffer.has_file {
             title = tprint("% • % • %", buffer.file.name, buffer.file.path, title);
         } else {
-            title = tprint("% • %", get_buffer_name(buffer), title);
+            buffer_name := get_buffer_name(buffer);
+            if buffer_name then title = tprint("% • %", buffer_name, title);
         }
     }
     platform_set_window_title(title);
@@ -1703,7 +1717,7 @@ select_all_occurrences :: (using editor: *Editor, buffer: Buffer) -> whole_words
 
         MAX_CURSORS :: 5000; // @Todo Make it a setting ?
         if cursors.count >= MAX_CURSORS {
-            add_user_warning(tprint("The maximum number of occurrences to be selected at once has been limited to %.", MAX_CURSORS));
+            add_user_warning("The maximum number of occurrences to be selected at once has been limited to %.", MAX_CURSORS);
             break;
         }
 
@@ -1814,7 +1828,15 @@ swap_panes :: () {
     // editors.left, editors.right = swap(editors.left, editors.right);
 }
 
-toggle_expand :: (expanded: bool) {
+toggle_expand :: () {
+    if build_panel_is_active() {
+        toggle_build_panel_height();
+    } else {
+        toggle_editor_expand(!editors.expanded);
+    }
+}
+
+toggle_editor_expand :: (expanded: bool) {
     if editors.layout != .Double return;
 
     editors.expanded = expanded;
@@ -3765,7 +3787,7 @@ move_to_editor_history_frame :: (frame: Editor_History_Frame, old_frame: Editor_
     } else {
         editor.scroll_to_cursor = .yes;
     }
-    if frame.expanded != old_frame.expanded && !editor_closing then toggle_expand(frame.expanded);  // do it last
+    if frame.expanded != old_frame.expanded && !editor_closing then toggle_editor_expand(frame.expanded);  // do it last
 
     cursor := leave_only_original_cursor(editor);
     cursor.pos = frame.pos;

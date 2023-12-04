@@ -39,7 +39,9 @@ finder_handle_event :: (event: Input.Event) -> handled: bool {
             case .move_up_one_page;         move_cursor(-per_page);                                 return true;
             case .move_down_one_page;       move_cursor( per_page);                                 return true;
 
+            case .escape;                   #through;
             case .close_dialog;             finder_close();                                         return true;
+
             case .open_entry_in_place;      finder_open_selected_result(selected, .in_place);       return true;
             case .open_entry_on_the_side;   finder_open_selected_result(selected, .on_the_side);    return true;
             case .open_entry_on_the_left;   finder_open_selected_result(selected, .left);           return true;
@@ -373,7 +375,7 @@ search_threadproc :: (group: *Thread_Group, thread: *Thread, work: *void) -> Thr
     return .CONTINUE;  // we want to reuse this thread for future searches
 }
 
-reset_search_request :: (using request: *Search_Request, new_needle: string) { //@nocheckin: add whole_word / case sensitive parameters
+reset_search_request :: (using request: *Search_Request, new_needle: string) {
     id += 1;
     for completed_tasks free_task(it);
     array_reset_keeping_memory(*completed_tasks);

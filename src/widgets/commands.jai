@@ -4,7 +4,9 @@ commands_dialog_handle_event :: (event: Input.Event) -> handled: bool {
     if event.type == .KEYBOARD && event.key_pressed {
         action, mapping := map_event_to_action(event, Action_Open_File_Dialog);
         if action == {
+            case .escape;                   #through;
             case .close_dialog;             hide_commands_dialog();                     return true;
+
             case .open_entry_in_place;      commands_execute_selected(.in_place);       return true;
             case .open_entry_on_the_side;   commands_execute_selected(.on_the_side);    return true;
             case .open_entry_on_the_left;   commands_execute_selected(.left);           return true;
@@ -54,7 +56,10 @@ commands_execute_selected :: (placement: Editor_Placement = .in_place) {
     if command.action == .do_nothing return;
 
     handled := handle_common_editor_action(command.action, placement);
-    if !handled then active_editor_handle_event(Input.Event.{}, command.action);
+    if !handled {
+        editor, buffer := get_active_editor_and_buffer();
+        if editor then active_editor_handle_event(editor, buffer, Input.Event.{}, command.action);
+    }
 }
 
 #scope_file
@@ -208,7 +213,7 @@ commands := #run Command.[
     .{ .move_editor_to_the_right,                           "Move Pane To The Right",             0, .Double },
 
     .{ .toggle_line_wrap,                                   "Toggle Line Wrap",                   0, .Single },
-    .{ .toggle_line_numbers,                                "Toggle Line Numbers",                0, .None },
+    .{ .toggle_line_numbers,                                "Toggle Line Numbers",                0, .Single },
     .{ .toggle_fullscreen,                                  "Toggle Fullscreen",                  0, .None },
 
     .{ .autoindent_region,                                  "Autoindent Region",                  0, .Single },

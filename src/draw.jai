@@ -289,19 +289,87 @@ draw_user_messages :: (main_area: Rect, footer_height: float) {
 }
 
 draw_build_panel :: () {
-    splitter := ifx !editor_closing then splitter_pos else 0.5;
-    left_rect, right_rect := cut_left(screen, screen.w * splitter, margin = 2);
+    // Drag build panel title bar first before drawing
+    if ui.active == .build_panel_title_bar {
+        if build_panel_get_position() == .left {
+            build_panel_set_width(((mouse.pointer.x - screen.x) - build_panel_grab_point.x) / screen.w);
+        } else {
+            build_panel_set_width((screen.x + screen.w - (mouse.pointer.x - build_panel_grab_point.x)) / screen.w);
+        }
+        build_panel_set_height((mouse.pointer.y - build_panel_grab_point.y - screen.y) / screen.h);
+    }
 
-    build_panel_rect := ifx build_panel_get_position() == .left then left_rect else right_rect;
-    build_panel_rect = shrink_y(build_panel_rect, 5 * char_size);
-    build_panel_rect.y += 5 * char_size;
+    build_panel_rect: Rect;
+    if build_panel_get_position() == .left {
+        build_panel_rect = cut_left(screen, screen.w * build_panel_width, margin = 2);
+    } else {
+        build_panel_rect = cut_right(screen, screen.w * build_panel_width, margin = 2);
+    }
+    if !values_are_close(build_panel_height, build_panel_height_anim.target) {
+        redraw_requested = true;
+        build_panel_height = get_animation_value(build_panel_height_anim);
+    }
+    build_panel_rect = cut_bottom(build_panel_rect, build_panel_rect.h * build_panel_height);
+
     if !is_valid(build_panel_rect) return;
-
-    editor_id := build_panel_get_editor_id();
     draw_rounded_rect_with_shadow(build_panel_rect, Colors.BUILD_PANEL_BACKGROUND, radius = 0.1, shadow_size = char_size);
 
-    ui_id := get_ui_id_from_loc();
-    draw_editor(editor_id, build_panel_rect, 0, ui_id, as_build_panel = true);
+    margin := floor(4 * dpi_scale);
+    title_bar_height := font_ui_line_height + 2 * margin + 4 * dpi_scale;
+    title_bar_rect, build_output_rect := cut_top(build_panel_rect, title_bar_height);
+
+    if !is_valid(title_bar_rect) return;
+
+    // Draw title bar
+    {
+        started_dragging := maybe_set_hot_or_active(.build_panel_title_bar, title_bar_rect, .NORMAL);
+        if started_dragging {
+            if build_panel_get_position() == .left {
+                build_panel_grab_point = mouse.pointer - top_right(title_bar_rect);
+            } else {
+                build_panel_grab_point = mouse.pointer - top_left(title_bar_rect);
+            }
+        }
+        if ui.active == .build_panel_title_bar then set_pointer_image(.DRAGGING_FREE);
+
+        push_scissor(title_bar_rect);
+        defer pop_scissor();
+
+        draw_rect(title_bar_rect, Colors.BUILD_PANEL_TITLE_BAR);
+
+        pen := Vector2.{
+            x = title_bar_rect.x + char_x_advance,
+            y = title_bar_rect.y + (title_bar_rect.h - font_ui_bold.character_height) / 2 + 2,
+        };
+        Simp.draw_text(font_ui_bold, xx pen.x, xx pen.y, "Build Output", Colors.UI_DEFAULT);
+
+        // Draw the close button
+        {
+            button_rect := cut_right(title_bar_rect, title_bar_rect.h);
+            button_id := get_ui_id_from_loc();
+            maybe_set_hot_or_active(button_id, button_rect, .PRESSABLE);
+            if ui.hot_last_frame == button_id && mouse.left.just_released && mouse_pointer_is_within(button_rect) {
+                hide_build_panel();
+                redraw_requested = true;
+            }
+
+            color := Colors.UI_DIM;
+            if is_hovering_over(button_id) color = Colors.UI_DEFAULT;
+            icon_char := convert_utf32_to_utf8(xx Icon.xmark);
+            icon_width := Simp.prepare_text(font_icons, to_string(*icon_char));
+            icon_x := button_rect.x + (button_rect.w - icon_width) / 2 ;
+            Simp.draw_prepared_text(font_icons, xx icon_x, xx pen.y, color = color);
+        }
+
+        hr := cut_bottom(title_bar_rect, 1);
+        draw_rect(hr, Colors.BACKGROUND_DARK);
+    }
+
+    if !is_valid(build_output_rect) return;
+
+    // Draw text
+    editor_id := build_panel_get_editor_id();
+    draw_editor(editor_id, build_output_rect, 0, get_ui_id_from_loc(), as_build_panel = true);
 }
 
 draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui_Id, total_editor_area := Rect.{}, as_build_panel := false) {
@@ -316,10 +384,10 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
 
     using editor := *open_editors[editor_id];
     buffer := *open_buffers[buffer_id];
-    if buffer.needs_coloring || buffer.colors.count != buffer.bytes.count then recalculate_colors(buffer);  // right before drawing
+    if buffer_needs_coloring(buffer) then recalculate_colors(buffer);  // right before drawing
 
     line_number_panel: Rect;
-    if config.settings.show_line_numbers {
+    if config.settings.show_line_numbers && !as_build_panel {
         max_lines  := get_max_line_num(editor, buffer) + 1;
         num_digits := tprint("%", max_lines).count;
         panel_width := (num_digits + 2) * char_x_advance;
@@ -731,7 +799,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
 
         max_lines := get_max_line_num(editor, buffer);
         visible_lines_start = clamp(cast(s32) (viewport.top / line_height) - 1, 0, max_lines);
-        visible_lines_end   = clamp(visible_lines_start + cast(s32) (rect.h / line_height) + 1, 0, max_lines);
+        visible_lines_end   = clamp(visible_lines_start + cast(s32) (rect.h / line_height) + 2, 0, max_lines);
         num_visible_lines   := visible_lines_end - visible_lines_start + 1;
 
         visible_offset_range = Offset_Range.{
@@ -792,23 +860,11 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
         for region : buffer.regions {
             if region.end   < visible_offset_range.start continue;
             if region.start > visible_offset_range.end   break;
-
-            color: Color;
-            if region.kind == {
-                case .scope_export;     color = Colors.REGION_SCOPE_EXPORT;
-                case .scope_file;       color = Colors.REGION_SCOPE_FILE;
-                case .scope_module;     color = Colors.REGION_SCOPE_MODULE;
-                case .header;           color = Colors.REGION_HEADER;
-                case .success;          color = Colors.REGION_SUCCESS;
-                case .warning;          color = Colors.REGION_WARNING;
-                case .error;            color = Colors.REGION_ERROR;
-            }
-
             range := Coords_Range.{
                 start = offset_to_coords(editor, buffer, region.start),
                 end   = offset_to_coords(editor, buffer, region.end),
             };
-            draw_range_full_width_lines(range, rect, visible_lines_start, visible_lines_end, text_origin, color);
+            draw_range_full_width_lines(range, rect, visible_lines_start, visible_lines_end, text_origin, get_region_color(region.kind));
         }
 
         // Draw selection highlights
@@ -826,7 +882,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
         }
 
         // Draw indent guides
-        if config.settings.draw_indent_guides {
+        if config.settings.draw_indent_guides && !as_build_panel {
             indent_levels: [..] int;
             indent_levels.allocator = temp;
 
@@ -869,7 +925,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                     color := ifx cursors_active then Colors.SELECTION_ACTIVE else Colors.SELECTION_INACTIVE;
                     draw_range(selection, editor, buffer, visible_lines_start, visible_lines_end, text_origin, color);
                 }
-                else if cursors_active && config.settings.highlight_line_with_cursor {
+                else if cursors_active && config.settings.highlight_line_with_cursor && !as_build_panel {
                     // Draw current line highlight
                     coords := cursor_coords[it_index];
                     line_start_offset := get_line_start_offset(editor, buffer, coords.pos.line);
@@ -950,13 +1006,23 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
             length     := get_line_start_offset(editor, buffer, line_num+1) - line_start;
             line := cast(string) array_view(buffer.bytes, line_start, length);
             tab_spaces := 0;
-            line, tab_spaces = advance_by_chars  (line, hidden_chars_on_the_left);
+            line, tab_spaces = advance_by_chars(line, hidden_chars_on_the_left);
             line = take_first_n_chars(line, max_chars_horizontally);
             line = trim_right(line, " \r\n");
             colors := ifx line then array_view(buffer.colors, line.data - buffer.bytes.data, line.count) else .[];
-            code_lines[line_num-visible_lines_start] = .{ line = line, tab_spaces = tab_spaces, colors = colors };
+            code_lines[line_num-visible_lines_start] = .{ line = line, start_offset = line_start, tab_spaces = xx tab_spaces, colors = colors };
         }
-        Simp.draw_code(font, xx pen.x, xx pen.y, char_x_advance, line_height, code_lines, CODE_COLOR_MAP, TAB_SIZE, hidden_chars_on_the_left);
+
+        selections: [..] Offset_Range;
+        selections.allocator = temp;
+        for cursor : cursors {
+            selection := get_selection(cursor);
+            if selection.end   < visible_offset_range.start continue;
+            if selection.start > visible_offset_range.end   break;
+            array_add(*selections, selection);
+        }
+
+        draw_code(font, pen, code_lines, selections, start_col = hidden_chars_on_the_left, is_colored = buffer.colors.count > 0);
 
         // Draw continuation markers for wrapped lines
         if line_wrap_is_active(editor) && !config.settings.show_line_numbers && !as_build_panel {
@@ -1208,6 +1274,8 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
             push_scissor(results_rect);
             defer pop_scissor();
 
+            draw_rect(results_rect, Colors.BACKGROUND);  // to make contrasting scopes more visible
+
             {
                 // Scrollbar
                 content_height := results.count * entry_height;
@@ -1266,10 +1334,24 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
             visible_count := cast(s64) (results_rect.h / entry_height) + 2;
             visible_entries := array_view(results, visible_start, visible_count);
 
+            // Pre-filter scope regions for easier checks later
+            visible_scopes: [..] Buffer_Region;
+            if buffer.regions && visible_entries {
+                start_offset := get_real_line_start_offset(buffer, visible_entries[0].line);
+                end_offset   := get_real_line_end_offset  (buffer, visible_entries[visible_entries.count-1].line);
+                for buffer.regions {
+                    if it.end   <= start_offset continue;
+                    if it.start >  end_offset   break;
+                    if it.kind == .scope_export || it.kind == .scope_file || it.kind == .scope_module {
+                        array_add(*visible_scopes, it);
+                    }
+                }
+            }
+
             last_line_num := ifx results then results[results.count-1].line + 1 else 1;
             line_num_col_width := char_x_advance * tprint("%", last_line_num).count;
             line_num_x := results_rect.x + margin;
-            text_x     := line_num_x + line_num_col_width + margin * 1.5;
+            text_x     := line_num_x + line_num_col_width + 2 * char_x_advance;
 
             max_code_chars := cast(s32)((results_rect.x + results_rect.w - text_x) / char_x_advance) - 1;  // NOTE: counts tab as one char
 
@@ -1280,6 +1362,15 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
             for entry, i : visible_entries {
                 entry_index := visible_start + i;
                 entry_rect.y = results_rect.y + results_rect.h - (entry_index + 1) * entry_height + scroll_y;
+
+                // Highlight the entry into the scope color the match is in
+                for visible_scopes {
+                    if entry.offset >= it.start && entry.offset <= it.end {
+                        scope_rect := cut_right(entry_rect, entry_rect.x + entry_rect.w - text_x + char_x_advance);
+                        draw_rect(scope_rect, get_region_color(it.kind));
+                        break;
+                    }
+                }
 
                 if mouse_pointer_is_within(entry_rect) && is_hovering_over(results_id) {
                     if mouse.left.just_pressed {
@@ -1355,7 +1446,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                         colors   := array_view(buffer.colors, visible_offset_range.start, line_str.count);
                         code_lines: [1] Simp.Code_Line;
                         code_lines[0] = .{ line = line_str, tab_spaces = 0, colors = colors };
-                        Simp.draw_code(font, xx pen.x, xx pen.y, char_x_advance, line_height, code_lines, CODE_COLOR_MAP, TAB_SIZE);
+                        draw_code(font, pen, code_lines, is_colored = buffer.colors.count > 0);
                     }
                 }
             }
@@ -1445,7 +1536,7 @@ draw_file_info :: (buffer: Buffer, width: float, padding: float, _pen: Vector2, 
     pen := _pen;
 
     // Icon
-    icon_char := convert_utf32_to_utf8(xx ifx buffer.has_file then buffer.file.icon else File_Icon.text);
+    icon_char := convert_utf32_to_utf8(xx ifx buffer.has_file then buffer.file.icon else Icon.text);
     icon_width := Simp.prepare_text(font_icons, to_string(*icon_char));
     icon_x := pen.x - (icon_width - font_icons.em_width) / 2.0;
     Simp.draw_prepared_text(font_icons, xx icon_x, xx pen.y, color = file_name_color);
@@ -2548,6 +2639,8 @@ draw_finder :: () {
         push_scissor(files_rect);
         defer pop_scissor();
 
+        if results then draw_rect(files_rect, Colors.BACKGROUND);  // to make contrasting scopes more visible
+
         {
             // Scrollbar
             content_height := results.count * entry_height;
@@ -2625,6 +2718,17 @@ draw_finder :: () {
             entry_index := visible_start + i;
             entry_rect.y = files_rect.y + files_rect.h - (entry_index + 1) * entry_height + scroll_y;
 
+            buffer := *open_buffers[entry.buffer_id];
+
+            // Highlight the entry into the scope color the match is in
+            for buffer.regions {
+                if entry.match_offset >= it.start && entry.match_offset <= it.end && (it.kind == .scope_export || it.kind == .scope_file || it.kind == .scope_module) {
+                    scope_rect := cut_right(entry_rect, entry_rect.x + entry_rect.w - text_x + char_x_advance);
+                    draw_rect(scope_rect, get_region_color(it.kind));
+                    break;
+                }
+            }
+
             if mouse_pointer_is_within(entry_rect) && is_hovering_over(ui_id) {
                 if mouse.left.just_pressed then selected_by_mouse = entry_index;
                 if selected_by_mouse == -1 then draw_rect(entry_rect, Colors.LIST_CURSOR_LITE);
@@ -2647,7 +2751,6 @@ draw_finder :: () {
             // Not sure if it's cheaper to do this for the visible results only, but every frame,
             // or do it once when searching, but for every resuls (and bloat the search result size).
             // Chose the first option at least for now.
-            buffer := *open_buffers[entry.buffer_id];
             line_num := offset_to_real_line(buffer, min(entry.match_offset, xx buffer.bytes.count));
             line_range := Offset_Range.{ start = get_real_line_start_offset(buffer, line_num), end = get_real_line_end_offset(buffer, line_num) };
             text_start := line_range.start + count_whitespace(buffer.bytes, line_range.start, line_range.end);
@@ -2696,7 +2799,7 @@ draw_finder :: () {
                     Simp.draw_text(font, xx pen.x, xx pen.y, "…", color = Colors.UI_DIM);
                     pen.x += char_x_advance;
                 }
-                if buffer.needs_coloring || buffer.colors.count != buffer.bytes.count then recalculate_colors(buffer);  // right before drawing
+                if buffer_needs_coloring(buffer) then recalculate_colors(buffer);  // right before drawing
 
                 // Draw highlight
                 highlight_rect := entry_rect;
@@ -2714,7 +2817,7 @@ draw_finder :: () {
                     colors   := array_view(buffer.colors, visible_range.start, line_str.count);
                     code_lines: [1] Simp.Code_Line;
                     code_lines[0] = .{ line = line_str, tab_spaces = 0, colors = colors };
-                    Simp.draw_code(font, xx pen.x, xx pen.y, char_x_advance, line_height, code_lines, CODE_COLOR_MAP, TAB_SIZE);
+                    draw_code(font, pen, code_lines, is_colored = buffer.colors.count > 0);
                 }
             }
         }
@@ -3010,6 +3113,16 @@ draw_tooltip_bottom_left :: (text: string, pos: Vector2) {
     Simp.draw_prepared_text(font_ui_very_small, xx (rect.x + padding), xx (rect.y + (rect.h - font_ui_very_small.character_height) / 2) + 1, Colors.UI_DEFAULT);
 }
 
+draw_code :: (font: *Simp.Dynamic_Font, pen: Vector2, code_lines: [] Simp.Code_Line, selections: [] Offset_Range = .[], start_col := 0, is_colored := true) {
+    // Use different code paths for colored and uncolored texts to avoid checking if color is present for each letter
+    if is_colored {
+        Simp.draw_code(font, xx pen.x, xx pen.y, char_x_advance, line_height, code_lines, CODE_COLOR_MAP, xx selections, TAB_SIZE, start_col, is_colored = true);
+    } else {
+        Simp.draw_code(font, xx pen.x, xx pen.y, char_x_advance, line_height, code_lines, CODE_COLOR_MAP, xx selections, TAB_SIZE, start_col, is_colored = false);
+    }
+}
+
+
 Corner_Rounding :: enum { none; in; out; }
 
 draw_rounded_rect :: (rect: Rect, color: Color, radius := 0.0, softness := 1.0, $set_shader := true) {
@@ -3240,6 +3353,21 @@ draw_button :: (font: *Simp.Dynamic_Font, label: string, color: Color, text_colo
 
 #scope_file
 
+get_region_color :: (kind: Buffer_Region.Kind) -> Color {
+    color := Colors.BACKGROUND;
+    if #complete kind == {
+        case .none;             // nothing
+        case .scope_export;     color = Colors.REGION_SCOPE_EXPORT;
+        case .scope_file;       color = Colors.REGION_SCOPE_FILE;
+        case .scope_module;     color = Colors.REGION_SCOPE_MODULE;
+        case .header;           color = Colors.REGION_HEADER;
+        case .success;          color = Colors.REGION_SUCCESS;
+        case .warning;          color = Colors.REGION_WARNING;
+        case .error;            color = Colors.REGION_ERROR;
+    }
+    return color;
+}
+
 push_scissor :: (rect: Rect) {
     set_scissor_rect(rect);
     array_add(*scissor_stack, rect);
@@ -3298,6 +3426,36 @@ is_hovering_over :: (ui_id: Ui_Id) -> bool {
     return (ui.hot_last_frame == ui_id && ui.active == .none) || ui.active == ui_id;
 }
 
+#scope_export
+
+Icon :: enum u16 {
+    // File types
+    file_unknown :: 0xf15b;
+    text         :: 0xf15c;
+    jai          :: 0xf574;
+    cpp          :: 0xf1c9;
+    cs           :: 0xf1c9;
+    worklog      :: 0xf46d;
+    git          :: 0xf387;
+    image        :: 0xf1c5;
+    audio        :: 0xf1c7;
+    font         :: 0xf031;
+    key          :: 0xf084;
+    gear         :: 0xf013;
+    folder       :: 0xe185;
+    drive        :: 0xf0a0;
+    js           :: 0xf15c;
+    shell        :: 0xf2d0;
+
+    save         :: 0xf019;
+    dots         :: 0xf141;
+    xmark        :: 0xf00d;
+
+    debug        :: 0xf7d9;
+}
+
+#scope_file
+
 ui: struct {
     active: Ui_Id = .none;
     hot:    Ui_Id = .none;
@@ -3306,21 +3464,22 @@ ui: struct {
 }
 
 Ui_Id :: enum s64 {
-    none                :: -1;
-    unavailable         :: -2;
+    none                    :: -1;
+    unavailable             :: -2;
 
-    editor_single       :: -3;
-    editor_left         :: -4;
-    editor_right        :: -5;
-    editor_splitter     :: -6;
-    open_file_dialog    :: -7;
-    finder              :: -8;
-    splash_screen       :: -9;
-    unsaved_buffers     :: -10;
-    commands_dialog     :: -11;
-    open_project_dialog :: -12;
-    delete_file_dialog  :: -13;
-    confirm_overwrite   :: -14;
+    editor_single           :: -3;
+    editor_left             :: -4;
+    editor_right            :: -5;
+    editor_splitter         :: -6;
+    open_file_dialog        :: -7;
+    finder                  :: -8;
+    splash_screen           :: -9;
+    unsaved_buffers         :: -10;
+    commands_dialog         :: -11;
+    open_project_dialog     :: -12;
+    delete_file_dialog      :: -13;
+    confirm_overwrite       :: -14;
+    build_panel_title_bar   :: -15;
 
     // The rest will be derived from loc
 }
@@ -3331,6 +3490,9 @@ Ui_Id :: enum s64 {
 // clean way this should probably be stored in widget storage?
 // Problem is, we don't have much else to store for scrollbars...
 scrollbar_grab_point: float;
+
+// Same as the scrollbar grab point above
+build_panel_grab_point: Vector2;
 
 // What to select when dragging
 selection_mode: Selection_Mode;
