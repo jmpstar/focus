@@ -426,8 +426,6 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
     if ui.active == ui_id && (mouse.left.just_pressed || mouse.left.is_dragging) {
         mouse_coords := coords_from_mouse_position();
 
-        cursors_stop_blinking();
-
         if ctrl_or_cmd_pressed() && !(mouse.left.is_dragging || mouse.left.just_double_clicked || mouse.left.just_triple_clicked) {
             click_offset := coords_to_offset(editor, buffer, mouse_coords);
 
@@ -1054,7 +1052,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                 screen_pos := get_cursor_screen_pos(text_origin, cursor_coords[it_index].pos);
 
                 rect := make_rect(screen_pos.x, screen_pos.y, cursor_width, line_height);
-                draw_rounded_rect(rect, Colors.CURSOR, radius = rounding_radius_small, set_shader = true);
+                draw_rounded_rect(rect, Colors.CURSOR, set_shader = true);
 
                 // Draw the letter on top for better visibility
                 if cursor_as_block {
