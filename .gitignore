@@ -13,6 +13,7 @@ build_release/
 build_debug/
 
 fonts/BerkeleyMono-Regular.ttf
+fonts/BerkeleyMono-Bold.ttf
 
 focus
 focus_debug

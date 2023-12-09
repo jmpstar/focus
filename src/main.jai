@@ -888,7 +888,7 @@ DOUBLE_CLICK_TOLERANCE :: 2;    // how many pixels between the click locations a
 // Embed default fonts
 FONT         :: #run load_font("BerkeleyMono-Regular.ttf");
 FONT_UI      :: #run load_font("BerkeleyMono-Regular.ttf");
-FONT_UI_BOLD :: #run load_font("BerkeleyMono-Regular.ttf");
+FONT_UI_BOLD :: #run load_font("BerkeleyMono-Bold.ttf");
 FONT_ICONS   :: #run load_font("font-awesome/Font Awesome 6 Free-Solid-900.otf");
 
 MIN_FONT_SIZE :: 4;

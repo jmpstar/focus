@@ -1517,7 +1517,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
 
                 // Draw code_branch icon
                 icon_width := Simp.prepare_text(font_icons, to_string(CODE_BRANCH_ICON));
-                icon_x := git_start_x - font_icons.em_width * 1.2;
+                icon_x := git_start_x - font_icons.em_width * 1.4;
                 Simp.draw_prepared_text(font_icons, xx icon_x, xx pen.y, color = Colors.UI_DIM);
             }
         }
