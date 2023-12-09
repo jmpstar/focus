@@ -12,6 +12,8 @@ temp/
 build_release/
 build_debug/
 
+fonts/BerkeleyMono-Regular.ttf
+
 focus
 focus_debug
 focus-trace.json
