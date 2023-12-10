@@ -624,6 +624,7 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
     visible_lines_start: s32;
     visible_lines_end:   s32;
     visible_offset_range: Offset_Range;
+    cursors_off_screen := 0;
 
     // Draw editor
     {
@@ -1042,21 +1043,31 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
         // Draw cursors when they are active
         cursor_as_block := config.settings.cursor_as_block && !as_build_panel;
         cursor_width := ifx cursor_as_block then char_x_advance else 2 * dpi_scale;
+        cursors_are_visible := should_draw_cursors() && !search_bar_is_open(editor);
 
-        if cursors_active && should_draw_cursors() && !search_bar_is_open(editor) {
+        if cursors_active {
             Simp.set_shader_for_rects();
             for cursor : cursors {
-                if cursor.pos < visible_offset_range.start || cursor.pos > visible_offset_range.end continue;
-                screen_pos := get_cursor_screen_pos(text_origin, cursor_coords[it_index].pos);
+                if cursor.pos < visible_offset_range.start || cursor.pos > visible_offset_range.end {
+                    cursors_off_screen += 1;
+                    continue;
+                }
 
-                rect := make_rect(screen_pos.x, screen_pos.y, cursor_width, line_height);
-                draw_rect(rect, Colors.CURSOR);
+                screen_pos := get_cursor_screen_pos(text_origin, cursor_coords[it_index].pos);
+                if screen_pos.x >= rect.x + rect.w || screen_pos.x + char_x_advance <= rect.x || screen_pos.y >= rect.y + rect.h || screen_pos.y + line_height < rect.y {
+                    cursors_off_screen += 1;  // additional check for visibility (offset is not reliable)
+                }
+
+                if !cursors_are_visible continue;  // check it within the loop so that we always calculate how many cursors are off screen
+
+                cursor_rect := make_rect(screen_pos.x, screen_pos.y, cursor_width, line_height);
+                draw_rect(cursor_rect, Colors.CURSOR);
 
                 // Draw the letter on top for better visibility
                 if cursor_as_block {
                     letter := get_char_at_offset_as_string(buffer, cursor.pos);
                     if letter != "\n" {
-                        Simp.draw_text(font, xx rect.x, xx (rect.y + (line_height - char_x_advance) / 2), letter);
+                        Simp.draw_text(font, xx cursor_rect.x, xx (cursor_rect.y + (line_height - char_x_advance) / 2), letter);
                     }
                 }
             }
@@ -1520,6 +1531,37 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                 icon_x := git_start_x - font_icons.em_width * 1.4;
                 Simp.draw_prepared_text(font_icons, xx icon_x, xx pen.y, color = Colors.UI_DIM);
             }
+
+            // @TODO: Here is the multi-cursor stuff, need to get that to play nicely with my vcs draw calls...
+            // // Maybe draw the number of cursors off screen
+            // if editor.cursors.count > 1 && cursors_off_screen && config.settings.show_cursors_off_screen {
+            //     width = xx Simp.prepare_text(font_ui_bold, tprint("%", cursors_off_screen));
+            //     cursor_indicator_x := line_col_start_x - width - char_x_advance;
+            //     Simp.draw_prepared_text(font_ui_bold, xx cursor_indicator_x, xx pen.y, color = Colors.CURSOR);
+
+            //     cursor_width := ifx config.settings.cursor_as_block then char_x_advance else 2 * dpi_scale;
+            //     cursor_y := footer_rect.y + (footer_rect.h - line_height) / 2;
+            //     cursor_rect := align_to_grid(make_rect(cursor_indicator_x - cursor_width - padding, cursor_y, cursor_width, line_height));
+
+            //     if should_draw_cursors() then draw_rounded_rect(cursor_rect, Colors.CURSOR, radius = rounding_radius_small, set_shader = true);
+
+            //     hover_rect := Rect.{ cursor_rect.x - padding, footer_rect.y, cursor_rect.w + padding + width + 2 * padding, footer_rect.h };
+            //     cursor_number_id := get_ui_id_from_loc();
+            //     maybe_set_hot_or_active(cursor_number_id, hover_rect, .NORMAL);
+            //     if is_hovering_over(cursor_number_id) {
+            //         draw_tooltip_bottom_left(tprint("Cursors off screen: %", cursors_off_screen), top_right(cursor_rect));
+            //     }
+            // }
+
+            // // Make sure the text is cut nicely (only if footer color is not translucent, otherwise it won't work)
+            // if footer_color.a >= 1.0 {
+            //     fadeout_rect := cut_rect;
+            //     fadeout_rect.w = 4 * padding;
+            //     trans := footer_color;
+            //     trans.a = 0;
+            //     Simp.set_shader_for_color(enable_blend = true);
+            //     draw_rect_raw(fadeout_rect, c00 = footer_color, c10 = trans, c01 = footer_color, c11 = trans);
+            // }
         }
     }
 
