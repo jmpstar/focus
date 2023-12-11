@@ -1476,6 +1476,12 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
     // Draw footer
     if !as_build_panel {
         footer_color := Colors.BACKGROUND_BRIGHT;
+
+        // Make the inactive footer darker. Probably we want to do that with a dedicated color, but changing the alpha works for my current theme, so whatever.
+        if !editor_is_active {
+            footer_color.a = 0.1;
+        }
+
         draw_rect(footer_rect, footer_color);
         draw_top_shadow(footer_rect);
 
