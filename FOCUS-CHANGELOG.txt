@@ -1,16 +1,12 @@
 # ROUGH ROADMAP
 
-- Config migration system to support changes to the config file across versions
-- Open file dialog improvements (better search)
 - Workspace search improvements (the ability to filter additionally by filename)
-- Language highlighting config files
+- Settings per file type
 - Add the ability to assign syntax to a buffer
+- Basic language definition files for the highlighting of languages we don't yet support
 - Config files for directories (i.e. adding a .focus-config file to your directory and have Focus load it)
-- Improve smooth scrolling for fancy mice
 - Identifier search
 - A little bit of semantic highlighting for Jai
-- Settings per file type
-- Custom title bar on Windows
 - Backup unsaved changes
 - Proper highlighting for C++
 - ...
@@ -24,6 +20,7 @@
 # Main Git Branch
 
 + New features:
+    + An automatic config migration system. All configs will be bumped to version [2], with new things added or renamed where needed.
     + Windows 11+: New config option: `colored_titlebar`. Sets the color of the title bar to the background color (thanks @amasondev)
     + New option: `hide_mouse_when_typing` (currently Windows/Mac only). Set to `true` to hide the mouse cursor when entering text (thanks @amasondev)
     + New commands: `add_cursors_to_line_ends` (Alt-Shift-I) and `add_cursors_to_line_starts` (Alt-Shift-Ctrl-I)
@@ -39,6 +36,7 @@
     + New option: `auto_surround_with_brackets_and_quotes` to enable auto-surrounding (thanks @hfr4)
     + New option: `scroll_beyond_last_line` (defaults to `true`). Disable to prevent scrolling past the editor's last line
     + New option: `show_cursors_off_screen` (defaults to `true`). If enabled, displays a warning in the footer if there are cursors off screen (only when more than one is used)
+    + New option: `persist_local_search_results` (defaults to `false`). If enabled, search highlights will persist even when the search bar is closed. Press escape to dismiss (you might need to bind the `escape` action for it to work). (thanks @amasondev)
     + Added support for regular expressions in file/project search
     + Added a built-in 'save file' dialog (it will be on by default). To use the system dialogs on Windows, use `prefer_system_file_dialogs: true`
     + Dragging with the middle mouse button will create cursors (thanks @hfr4)
@@ -87,6 +85,7 @@
     + Newer user messages will stop dismissing older ones which have a longer lifetime
     + Fixed a crash when trying to rewind editor history after reloading workspace
     + Fixed a crash when searching with whole word match on
+    + Aligned missing shortcuts on the welcome screen
 
 + Other changes:
     + When the workspace is done scanning, the open file dialog input will no longer be cleared

@@ -113,7 +113,8 @@ platform_create_window :: () {
         window_width, window_height,
         window_generic_title,
         window_x, window_y,
-        background_color_rgb = as_3_floats(Colors.BACKGROUND));
+        background_color_rgb = color_as_3_floats(Color.BACKGROUND_0),
+    );
 
     if LD.active_backend() == .X11 {
         data := icon_data.png_data;
@@ -244,9 +245,24 @@ platform_get_troubleshooting_info :: () -> string /* temp */ {
 
     push_allocator(temp);
 
-    env_check :: (sb: *String_Builder, name: *u8) {
-        val := getenv(name);
-        print_to_builder(sb, "  % : %\n", to_string(name), ifx val then to_string(val) else "<not set>");
+    env_check :: (sb: *String_Builder, names: .. *u8) {
+        for name : names {
+            val := getenv(name);
+            print_to_builder(sb, "  % : %\n", to_string(name), ifx val then to_string(val) else "<not set>");
+        }
+    }
+
+    env_check_by_prefix :: (sb: *String_Builder, prefixes: .. *u8) {
+        for prefix : prefixes {
+            ptr := environ;
+            while ptr.* {
+                defer ptr += 1;
+                parts := split(to_string(ptr.*), "=", 2);
+                if parts.count != 2 continue;
+                if !starts_with(parts[0], to_string(prefix)) continue;
+                print_to_builder(sb, "  % : %\n", parts[0], parts[1]);
+            }
+        }
     }
 
     gl_string :: (id: GLenum) -> string {
@@ -326,7 +342,7 @@ platform_get_troubleshooting_info :: () -> string /* temp */ {
             found := false;
             for l : libs {
                 if l == lib {
-                    found := true;
+                    found = true;
                     break;
                 }
             }
@@ -356,18 +372,13 @@ platform_get_troubleshooting_info :: () -> string /* temp */ {
     print_to_builder(*sb, "\n");
 
     print_to_builder(*sb, "Interesting things in the environment:\n");
-    env_check(*sb, "FOCUS_LD_BACKEND");
-    env_check(*sb, "FOCUS_LD_GL_BACKEND");
-    env_check(*sb, "DISPLAY");
-    env_check(*sb, "WAYLAND_DISPLAY");
-    env_check(*sb, "DESKTOP_SESSION");
-    env_check(*sb, "XDG_SESSION_DESKTOP");
-    env_check(*sb, "XDG_CURRENT_DESKTOP");
-    env_check(*sb, "XCURSOR_THEME");
-    env_check(*sb, "XCURSOR_SIZE");
-    env_check(*sb, "LD_LIBRARY_PATH");
-    env_check(*sb, "LD_PRELOAD");
+    env_check(*sb, "FOCUS_LD_BACKEND", "FOCUS_LD_GL_BACKEND");
+    env_check(*sb, "DISPLAY", "WAYLAND_DISPLAY");
+    env_check(*sb, "DESKTOP_SESSION", "XDG_SESSION_DESKTOP", "XDG_CURRENT_DESKTOP");
+    env_check(*sb, "XCURSOR_THEME", "XCURSOR_SIZE");
+    env_check(*sb, "LD_LIBRARY_PATH", "LD_PRELOAD");
     env_check(*sb, "PATH");
+    env_check_by_prefix(*sb, "__GL_");  // NVIDIA stuff
     print_to_builder(*sb, "\n");
 
     print_to_builder(*sb, "Loaded libraries:\n");
@@ -439,3 +450,5 @@ Linux_System_Info :: struct {
     ld_gl_backend: LD.GL_BACKEND;
 }
 system_info: Linux_System_Info;
+
+environ: **u8 #elsewhere;  // provided by the C runtime

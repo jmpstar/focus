@@ -213,8 +213,11 @@ hard_reload_workspace :: () {
     init_buffers();
     init_build_system();
     update_window_title();
-    if preserve_visible_editors_after_reload then reopen_visible_editors(old_editor_state);
-    show_open_file_dialog(.search);
+    if automatic_workspace_reload {
+        reopen_visible_editors(old_editor_state);
+    } else {
+        show_open_file_dialog(.search);
+    }
     start_initial_workspace_scan();
 
     add_success_message("Workspace has been reloaded", dismiss_in_seconds=3);
@@ -309,6 +312,7 @@ Visible_Editor_State :: struct {
 }
 
 start_watching_file_if_not_already :: (file_path: string) {
+    assert(context.allocator.proc == focus_allocator.proc, "Unexpected context allocator for start_watching_file_if_not_already. This is a bug.");
     if file_is_watched(file_path) return;
 
     parent_dir := get_parent_dir_path(file_path);

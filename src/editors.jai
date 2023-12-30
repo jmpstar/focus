@@ -296,7 +296,10 @@ active_editor_handle_event :: (editor: *Editor, buffer: *Buffer, event: Input.Ev
         case .close_right_editor;               close_editor(.right);
 
         case .close_dialog;                     hide_build_panel();
-        case .escape;                           hide_build_panel(); remove_additional_cursors(editor);
+        case .escape;                           hide_build_panel();
+                                                remove_additional_cursors(editor);
+                                                reset_search_results(*editor.search_bar);
+                                                editor.refresh_highlights = true;
 
         case .save;                             save    (editor.buffer_id);
         case .save_as;                          save_as (editor.buffer_id);
@@ -431,6 +434,7 @@ active_editor_handle_event :: (editor: *Editor, buffer: *Buffer, event: Input.Ev
     if buffer.dirty {
         rescan_for_lines(buffer);
         if line_wrap_is_active(editor) then rescan_for_wrapped_lines(editor, buffer);
+        if editor.search_bar.results then search_and_update_results(editor, buffer, jump = false);
     }
     for * editor.cursors put_cursor_in_valid_spot(it, buffer);
     if editor.cursors.count > 1 then organise_cursors(editor);  // sort and maybe merge overlapping cursors
@@ -522,6 +526,7 @@ active_editor_type_char :: (char: u32) {
     buffer.last_edit_time = frame_time;
     editor.cursor_moved = .unimportant;
     cursors_start_blinking();
+    if editor.search_bar.results then search_and_update_results(editor, buffer, jump = false);
 }
 
 get_active_editor_and_buffer :: () -> *Editor, *Buffer {
@@ -540,7 +545,7 @@ refresh_all_editors_for_buffer :: (buffer_id: s64) {
 
         adjust_cursors_and_viewport(editor, buffer, editor_id);
         editor.refresh_highlights = true;
-        if search_bar_is_open(editor) search_and_update_results(editor, buffer);
+        if editor.search_bar.results then search_and_update_results(editor, buffer);
     }
     array_reset_keeping_memory(*buffer.edit_notifications);
 }
@@ -689,7 +694,7 @@ editors_open_buffer :: (buffer_id: s64, placement: Editor_Placement = .in_place)
     buffer := *open_buffers[buffer_id];
     if buffer.num_times_opened < 255 then buffer.num_times_opened += 1;
 
-    update_window_title(buffer_id);
+    make_editor_active(editors.active);
     maybe_mark_buffer_as_deleted(buffer_id);  // check in case we missed that it's deleted
     session_notify_modified_buffer(buffer_id);
     cursors_start_blinking();
@@ -1011,8 +1016,10 @@ close_search_bar :: inline (editor: *Editor, jump_to_original_cursor := false, j
         editor.scroll_to_cursor = .yes;
     }
 
-    reset_search_results(*editor.search_bar);
-    editor.refresh_highlights = true;
+    if !config.settings.persist_local_search_results {
+        reset_search_results(*editor.search_bar);
+        editor.refresh_highlights = true;
+    }
 }
 
 search_bar_toggle_expand :: (using editor: *Editor) {
@@ -1240,6 +1247,7 @@ set_lang_from_path :: (buffer: *Buffer, path: string) {
             case "jai";            buffer.lang = .Jai;
             case "cs";             buffer.lang = .CSharp;
             case "focus-config";   buffer.lang = .Focus_Config;
+            case "focus-theme";    buffer.lang = .Focus_Theme;
             case "go";             buffer.lang = .Golang;
             case "lua";            buffer.lang = .Lua;
             case "odin";           buffer.lang = .Odin;
@@ -1428,7 +1436,12 @@ restore_cursor_state :: (using editor: *Editor, cursor_state: [] Cursor) {
 make_editor_active :: (editor_id: s64) {
     assert(editor_id < open_editors.count, "Trying to activate editor %, but the last available one is %", editor_id, open_editors.count - 1);
     editors.active = editor_id;
-    update_window_title(open_editors[editor_id].buffer_id);
+
+    buffer_id := open_editors[editor_id].buffer_id;
+    update_window_title(buffer_id);
+
+    array_ordered_remove_by_value(*most_recent_buffers, buffer_id);
+    array_insert_at(*most_recent_buffers, buffer_id, 0);
 }
 
 update_window_title :: (buffer_id: s64 = -1) {
@@ -1806,7 +1819,7 @@ switch_to_editor :: (side: enum { left; right; other; }, duplicate_current := fa
     editor := *open_editors[editors.active];
     maybe_mark_buffer_as_deleted(editor.buffer_id);  // check in case we missed that it's deleted
 
-    update_window_title(open_editors[editors.active].buffer_id);
+    make_editor_active(editors.active);
     cursors_start_blinking();
 }
 
@@ -2702,23 +2715,28 @@ remove_additional_cursors :: (editor: *Editor) {
     editor.cursor_moved = .refresh_only;
 }
 
-add_cursors_to_line_starts :: (editor: *Editor, buffer: Buffer) {
+add_cursors_to_line_starts :: (using editor: *Editor, buffer: Buffer) {
     if buffer.bytes.count <= 0 return;
 
     line_ranges := get_whole_line_ranges_for_cursors(editor, buffer);
-    array_reset_keeping_memory(*editor.cursors);  // reset after getting ranges (obviously)
+    array_reset_keeping_memory(*cursors);  // reset after getting ranges (obviously)
+
+    pos: s32;
 
     for * line_range : line_ranges {
         line_num := offset_to_line(editor, buffer, line_range.start);
         while true {
-            pos := buffer.line_starts[line_num];
+            pos = buffer.line_starts[line_num];
             if pos >= line_range.end break;
-            array_add(*editor.cursors, Cursor.{ pos = pos, sel = pos, col_wanted = -1 });
+            array_add(*cursors, Cursor.{ pos = pos, sel = pos, col_wanted = -1 });
             line_num += 1;
         }
     }
 
-    assert(editor.cursors.count > 0);
+    if !cursors then array_add(*cursors, Cursor.{ pos = pos, sel = pos, col_wanted = -1 });
+
+    main_cursor     = clamp(main_cursor,     0, cursors.count - 1);
+    original_cursor = clamp(original_cursor, 0, cursors.count - 1);
 
     editor.cursor_moved = .unimportant;
 }
@@ -3141,6 +3159,7 @@ toggle_comment :: (editor: *Editor, buffer: *Buffer) {
         case .Lua;          comment = "--";
         case .Odin;         comment = "//";
         case .Focus_Config; comment = "#";
+        case .Focus_Theme;  comment = "#";
         case .Python;       comment = "#";
         case .RenPy;        comment = "#";
         case .Yang;         comment = "//";
@@ -3768,11 +3787,13 @@ Editor_Placement :: enum {
     right;
 }
 
+open_buffers_lock: Mutex;  // must hold while adding a new buffer
+
 open_buffers: Simple_Bucket_Array(Buffer, items_per_bucket = 1024, max_buckets = 1024);  // 8 Kb for pointer array, ~1 million buffers is the maximum
 open_editors: [..] Editor;
 buffers_table: Table(string, s64);  // a map from full buffer path to buffer id (only for the open buffers, obviously)
 
-open_buffers_lock: Mutex;  // must hold while adding a new buffer
+most_recent_buffers: [..] s64;  // updated when an editor is activated, used to switch between open files
 
 editors: Editor_State;
 editor_closing  := false;  // whether the active editor is currently being closed (so that we can change the layout when it's done closing)

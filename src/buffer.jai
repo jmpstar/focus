@@ -26,18 +26,6 @@ refresh_open_buffers :: () {
     }
 }
 
-get_buffer_ids_with_open_editors :: () -> [] s64 /* temp */ {
-    buffer_ids: [..] s64;
-    buffer_ids.allocator = temp;
-    array_reserve(*buffer_ids, open_editors.count);
-
-    for open_editors {
-        array_add_if_unique(*buffer_ids, it.buffer_id);  // aaaa linear search oh no the program is slow now
-    }
-
-    return buffer_ids;
-}
-
 put_cursor_in_valid_spot :: (using cursor: *Cursor, buffer: Buffer) {
     pos = clamp(pos, 0, xx buffer.bytes.count);
     sel = clamp(sel, 0, xx buffer.bytes.count);
@@ -656,7 +644,7 @@ save_buffer :: (using buffer: *Buffer, buffer_id: s64) {
         error_when_saving = true;
     }
     remember_last_modtime_and_size(buffer);
-    update_window_title(open_editors[editors.active].buffer_id);
+    if editors.active >= 0 && editors.active < open_editors.count then update_window_title(open_editors[editors.active].buffer_id);
 
     // The config will attempt to refresh again on a file watcher message, but it should exit early because it will be unchanged.
     // We're doing it here because this way we always refresh right away, without waiting for a message to wake us up
@@ -1092,6 +1080,7 @@ unsaved_buffers_exist :: () -> bool {
 }
 
 remove_all_buffers :: () {
+    array_reset_keeping_memory(*most_recent_buffers);
     deinit(*buffers_table);
     for * open_buffers free_buffer(it);
     bucket_array_reset(*open_buffers);
@@ -1161,6 +1150,7 @@ get_highlighter_function :: (lang: Buffer.Lang) -> Highlighter_Function {
         case .C;            return highlight_c_syntax;
         case .CSharp;       return highlight_csharp_syntax;
         case .Focus_Config; return highlight_focus_config_syntax;
+        case .Focus_Theme;  return highlight_focus_config_syntax;
         case .Glsl;         return highlight_glsl_syntax;
         case .Golang;       return highlight_golang_syntax;
         case .Lua;          return highlight_lua_syntax;
@@ -1335,6 +1325,7 @@ Buffer :: struct {
         C;
         CSharp;
         Focus_Config;
+        Focus_Theme;
         Glsl;
         Golang;
         Lua;

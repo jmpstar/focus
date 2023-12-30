@@ -1,4 +1,4 @@
-[1]  # Version number. Do not delete.
+[2]  # Version number. Do not delete.
 
 [[workspace]]
 
@@ -51,24 +51,47 @@ scroll_beyond_last_line:                true
 double_shift_to_search_in_workspace:    false
 can_cancel_go_to_line:                  true
 copy_whole_line_without_selection:      false
-max_entries_in_open_file_dialog:        2000
 tab_size:                               4
 line_height_scale_percent:              120
 max_editor_width:                       -1
 editor_history_size:                    1024
 line_wrap_is_on_by_default:             false
 show_line_numbers:                      false
-hide_mouse_when_typing:                 true
+hide_mouse_when_typing:                 false
 highlight_line_with_cursor:             false
 draw_indent_guides:                     false
 auto_surround_with_brackets_and_quotes: false
 auto_close_brackets:                    false
 show_cursors_off_screen:                true
+persist_local_search_results:           false  # if true, search results will stay highlighted and you have to dismiss them using the `escape` action
 
 build_panel_stays_in_one_place:         false  # if true, the build panel will flip to the inactive pane in two pane layouts
 build_panel_line_wrap_always_on:        true
 build_panel_width_percent:              50
 build_panel_height_percent:             50
+
+
+# [[build commands]]
+# build_working_dir:      <build working dir for all commands>
+# open_panel_on_build:    true  #  <- any settings specified here will apply to all commands unless overridden
+# close_panel_on_success: false
+
+# [Debug Build And Run]   # <- command name. Can be arbitrary
+# build_command:          jai main.jai  # should be an executable or a script
+# build_working_dir:      <build working dir for this command only>
+# timeout_in_seconds:     5             # if you don't want a timeout, don't specify it
+# run_command:            test          # will be run if build succeeds
+# run_working_dir:        /path/to/cmd  # working dir for the run command
+# key_binding:            F5
+
+# [Run]                   # <- You could have commands that don't build anything and just run something
+# run_command:            test
+# run_working_dir:        /Users/user/test
+# key_binding:            Ctrl-F5
+
+# [Release]
+# build_command:          jai first.jai - release
+# key_binding:            F9
 
 
 [[keymap]]
@@ -80,7 +103,7 @@ build_panel_height_percent:             50
 # Key combination           Action
 
 Cmd-D                       select_word_or_create_another_cursor
-Ctrl-Shift-A                select_all_occurrences
+Cmd-Shift-A                 select_all_occurrences
 
 Cmd-Shift-D                 duplicate_lines
 
@@ -150,9 +173,9 @@ Cmd-Shift-N                 create_new_file_on_the_side
 
 Alt-Shift-ArrowUp           create_cursor_above
 Alt-Shift-ArrowDown         create_cursor_below
-Alt-A                       align_cursors
+Alt-Cmd-A                   align_cursors
 
-Alt-Z                       toggle_line_wrap
+Alt-Cmd-Z                   toggle_line_wrap
 
 
 [open file dialog]
@@ -194,10 +217,10 @@ Cmd-Shift-F                 search_in_project
 
 Cmd-Alt-P                   switch_to_project
 
-Cmd-P                       show_open_file_dialog_in_search_mode
-Cmd-O                       show_open_file_dialog_in_navigate_mode
-Cmd-Shift-O                 show_open_file_dialog_in_navigate_mode_from_root
-Ctrl-Tab                    show_open_file_dialog_in_open_editors_mode
+Cmd-P                       open_file_by_name
+Cmd-O                       navigate_to_file
+Cmd-Shift-O                 navigate_to_file_from_root
+Cmd-Tab                     switch_between_open_files
 
 Cmd-G                       go_to_line
 
@@ -217,6 +240,8 @@ Cmd-Shift-W                 close_other_editor
 Escape                      escape  # combines close_dialog and remove_additional_cursors
 
 Cmd-Shift-L                 toggle_expand
+
+Cmd-B                       toggle_build_panel
 
 F11                         toggle_fullscreen
 
@@ -262,16 +287,16 @@ Cmd-MouseMiddle             reset_font_size_to_default
 
 [[style]]
 
-[user interface]
+[fonts]
 font:       default
 font_size:  14
 
 [colors]
-background:                             15212AFF
-background_dark:                        10191FFF
-background_highlight:                   18262FFF
-background_light:                       1A2831FF
-background_bright:                      21333FFF
+background0:                            15212AFF
+background1:                            10191FFF
+background2:                            18262FFF
+background3:                            1A2831FF
+background4:                            21333FFF
 selection_active:                       1C4449FF
 selection_inactive:                     1C44497F
 selection_highlight:                    FCEDFC26
@@ -291,6 +316,7 @@ list_cursor:                            33CCCC4C
 shadow_dark:                            0E161C7F
 shadow_transparent:                     0E161C00
 text_input_label:                       3B4450FF
+char_under_cursor:                      FFFFFFFF
 
 ui_default:                             BFC9DBFF
 ui_dim:                                 87919DFF
