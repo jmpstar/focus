@@ -226,7 +226,7 @@ main :: () {
                         if event.key_pressed then last_press = frame_time;
                     }
 
-                case .MOUSE_WHEEL;
+                case .MOUSE_V_WHEEL;
                     #if OS != .MACOS {
                         if ctrl_or_cmd_pressed() {
                             if event.wheel_delta < 0  {
@@ -284,6 +284,7 @@ main :: () {
 
         process_buffer_save_queue();
         build_system_update();
+        maybe_revert_temporary_theme();
         refresh_open_buffers();
 
         draw_frame();
@@ -334,7 +335,8 @@ handle_common_editor_action :: (action: Action_Editors, placement: Editor_Placem
         case .switch_to_project;                                show_dialog(*open_project_dialog);                  return true;
         case .close_project;                                    close_project();                                    return true;
 
-        case .choose_theme;                                     show_dialog(*theme_dialog);                  return true;
+        case .choose_theme;                                     show_dialog(*theme_dialog);                         return true;
+        case .edit_current_theme;                               edit_current_theme(placement);                      return true;
 
         case .open_projects_directory;                          platform_open_in_explorer(projects_dir);            return true;
         case .open_global_config;                               editors_open_global_config(placement);              return true;
@@ -478,9 +480,10 @@ update_mouse_state :: () {
     mouse.previous_position = mouse.pointer;
 
     if shift_pressed() {
-        mouse.scroll_x_delta = cast(s32) (cast(float) Input.mouse_delta_z * WHEEL_SENSITIVITY);
+        mouse.scroll_x_delta = cast(s32) (cast(float) Input.mouse_wheel_delta.vertical * WHEEL_SENSITIVITY);
     } else {
-        mouse.scroll_y_delta = cast(s32) (cast(float) Input.mouse_delta_z * WHEEL_SENSITIVITY);
+        mouse.scroll_x_delta = cast(s32) (cast(float) Input.mouse_wheel_delta.horizontal * WHEEL_SENSITIVITY);
+        mouse.scroll_y_delta = cast(s32) (cast(float) Input.mouse_wheel_delta.vertical   * WHEEL_SENSITIVITY);
     }
     mouse.smooth_scroll = (mouse.scroll_y_delta % 120) == 0;  // @Robustness: hard-coded typical delta, but it really should be ok for now
     if !config.settings.smooth_scrolling then mouse.smooth_scroll = false;

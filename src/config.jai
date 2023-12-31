@@ -74,8 +74,6 @@ load_project_config :: (project: string = "", force := false) -> success: bool, 
 }
 
 apply_config :: () {
-    platform_set_border_color();
-
     // Make sure the values are within the acceptable range
     old_tab_size := TAB_SIZE;
     TAB_SIZE = clamp(cast(s32) config.settings.tab_size, 1, 100);  // be reasonable mkay (though even 100 is unreasonable)
@@ -176,8 +174,17 @@ refresh_config :: (path: string) {
     dont_ignore_next_window_resize = true;
 }
 
+refresh_current_theme :: () {
+    if global_config.loaded  then load_global_config(force = true);
+    if project_config.loaded then load_project_config(force = true);
+}
+
 is_our_config_file :: (path: string) -> bool {
     return path != "" && (platform_path_equals(path, global_config.path) || platform_path_equals(path, project_config.path));
+}
+
+is_current_theme :: (path: string) -> bool {
+    return config.style.theme && platform_path_equals(path, tprint("%/%.focus-theme", themes_dir, config.style.theme));
 }
 
 close_project :: () {
@@ -268,6 +275,8 @@ apply_style :: (parsed: Parsed_Config) {
             log_error("Couldn't map color name '%' to color enum value. This is a bug", it.color_name);
         }
     }
+
+    platform_set_border_color();
 }
 
 #scope_file
@@ -305,6 +314,7 @@ load_config :: (file_path: string, existing: *Loaded_Config, force := false) -> 
         file_data = new_file_data;
 
         // Replace the old config's file
+        loaded_config.hash = calculate_hash(to_bytes(new_file_data));
         success := write_entire_file(file_path, new_file_data);
         if success {
             add_success_message("Config file '%' has been migrated to version [%]", file_path, CURRENT_CONFIG_VERSION);
@@ -422,6 +432,11 @@ Config :: struct {
     build:     Build_Config;
     linux:     Linux_Config;
     nso:       Nso_Config;
+}
+
+Style :: struct {
+    theme: string;
+    // TODO: add other things in there at some point
 }
 
 Style :: struct {

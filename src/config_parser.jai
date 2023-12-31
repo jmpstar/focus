@@ -82,10 +82,7 @@ parse_config :: (name: string, filename: string, file_data: string, for_highligh
             handled, error_msg := maybe_switch_section(*parser, line, fix_section = ifx parse_as_theme then .style else .none);
             if error_msg {
                 add_highlight(*parser, 0, line.count, .error);
-                if !parse_for_highlighting {
-                    result.error_msg = log_parser_error(parser, error_msg);
-                    return result;  // this is a hard error, we don't want to proceed
-                }
+                array_add(*result.warnings, log_parser_error(parser, error_msg));
             }
             if handled continue;
         }
@@ -1163,16 +1160,13 @@ Parsed_Config :: struct {
     // Platform-specific
     linux: Linux_Config;
 
-<<<<<<< HEAD
     // NSO
     nso: Nso_Config;
-=======
     // Remember offsets to help with modifying configs later
     offsets: struct {
         style_section := -1;
         theme_line    := -1;
     };
->>>>>>> main
 };
 
 Config_Parse_Result :: struct {

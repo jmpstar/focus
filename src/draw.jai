@@ -1069,11 +1069,9 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                 if !cursors_are_visible continue;  // check it within the loop so that we always calculate how many cursors are off screen
 
                 cursor_rect := make_rect(screen_pos.x, screen_pos.y, cursor_width, line_height);
-<<<<<<< HEAD
-                draw_rect(cursor_rect, Colors.CURSOR);
-=======
                 draw_rounded_rect(cursor_rect, Color.CURSOR, radius = rounding_radius_small, set_shader = true);
->>>>>>> main
+
+                draw_rounded_rect(cursor_rect, Color.CURSOR, radius = rounding_radius_small, set_shader = true);
 
                 // Draw the letter on top for better visibility
                 if cursor_as_block {
@@ -1554,17 +1552,13 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
 
     // Draw footer
     if !as_build_panel {
-<<<<<<< HEAD
-        footer_color := Colors.BACKGROUND_BRIGHT;
-
-        // Make the inactive footer darker. Probably we want to do that with a dedicated color, but changing the alpha works for my current theme, so whatever.
-        if !editor_is_active {
-            footer_color.a = 0.1;
-        }
-
-=======
         footer_color := Color.BACKGROUND_4;
->>>>>>> main
+
+        footer_color := Color.BACKGROUND_4;
+        // Make the inactive footer darker to have more visual indication which is the active editor
+        if !editor_is_active {
+        	footer_color.a = 0.1;
+        }
         draw_rect(footer_rect, footer_color);
         draw_top_shadow(footer_rect);
 
@@ -1598,7 +1592,6 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
             coords := cursor_coords[main_cursor].pos;
             if line_wrap_is_active(editor) then coords = get_real_cursor_coords(buffer, editor.cursors[main_cursor]).pos;
 
-<<<<<<< HEAD
             // // I don't need the offset, fuck this :)
             // #if DEBUG {
             //     line_col_width = xx Simp.prepare_text(font_ui_bold, tprint("Offset: %  Line: %  Col: %", editor.cursors[main_cursor].pos, coords.line + 1, coords.col + 1));
@@ -1652,7 +1645,6 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
             //     Simp.set_shader_for_color(enable_blend = true);
             //     draw_rect_raw(fadeout_rect, c00 = footer_color, c10 = trans, c01 = footer_color, c11 = trans);
             // }
-=======
             #if DEBUG {
                 width = xx Simp.prepare_text(font_ui_bold, tprint("Offset: %  Line: %  Col: %", editor.cursors[main_cursor].pos, coords.line + 1, coords.col + 1));
             } else {
@@ -1687,7 +1679,6 @@ draw_editor :: (editor_id: s64, main_area: Rect, footer_height: float, ui_id: Ui
                 fadeout_rect.w = 4 * padding;
                 draw_rect_translucent_on_the_right(fadeout_rect, footer_color);
             }
->>>>>>> main
         }
     }
 
@@ -1752,7 +1743,7 @@ draw_file_info :: (buffer: Buffer, width: float, padding: float, _pen: Vector2, 
             label = "[current global config]";
         } else if project_config.loaded && platform_path_equals(buffer.file.full_path, project_config.path) {
             label = "[current project config]";
-        } else if platform_path_equals(buffer.file.full_path, tprint("%/%.focus-theme", themes_dir, config.style.theme)) {
+        } else if is_current_theme(buffer.file.full_path) {
             label = "[currently active theme]";
         }
         if label {
