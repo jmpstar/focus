@@ -12,8 +12,7 @@ temp/
 build_release/
 build_debug/
 
-fonts/BerkeleyMono-Regular.ttf
-fonts/BerkeleyMono-Bold.ttf
+fonts/BerkeleyMono*
 
 focus
 focus_debug
