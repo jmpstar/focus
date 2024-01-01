@@ -439,11 +439,6 @@ Style :: struct {
     // TODO: add other things in there at some point
 }
 
-Style :: struct {
-    theme: string;
-    // TODO: add other things in there at some point
-}
-
 Loaded_Config :: struct {
     loaded := false;
     there_were_warnings := false;
